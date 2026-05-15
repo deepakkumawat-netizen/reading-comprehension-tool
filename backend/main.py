@@ -372,9 +372,12 @@ async def health():
 
 # ── Serve frontend ────────────────────────────────────────────────────────────
 
-frontend_dir = Path(__file__).parent.parent / "frontend" / "dist"
-if frontend_dir.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="static")
+try:
+    frontend_dir = Path(__file__).parent.parent / "frontend" / "dist"
+    if frontend_dir.exists():
+        app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="static")
+except Exception as e:
+    print(f"[startup] Static files mount skipped: {e}")
 
 
 if __name__ == "__main__":
