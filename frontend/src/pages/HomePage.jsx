@@ -37,7 +37,7 @@ export default function HomePage({ onStart }) {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-8">
-          Powered by Groq LLaMA-3.3-70b · RAG Memory · MCP Tools
+          Powered By Codevidhya
         </p>
       </div>
     </div>
