@@ -1,4 +1,4 @@
-import textstat
+import re
 
 GRADE_PROFILES = {
     3:  {"vocab": "simple everyday words (3-4 letters common)", "sentence": "short 5-8 words", "passage_words": "150-200"},
@@ -14,6 +14,16 @@ GRADE_PROFILES = {
 }
 
 
+def _count_syllables(word: str) -> int:
+    word = word.lower().strip(".,!?;:'\"")
+    if not word:
+        return 1
+    count = len(re.findall(r'[aeiouy]+', word))
+    if word.endswith('e') and count > 1:
+        count -= 1
+    return max(count, 1)
+
+
 def get_grade_prompt_context(grade_level: int) -> str:
     profile = GRADE_PROFILES.get(grade_level, GRADE_PROFILES[6])
     return (
@@ -26,13 +36,25 @@ def get_grade_prompt_context(grade_level: int) -> str:
 
 
 def analyze_text_grade(text: str) -> dict:
-    if not text or len(text.split()) < 5:
+    if not text:
         return {}
+    sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
+    words = re.findall(r'\b\w+\b', text)
+    if len(sentences) == 0 or len(words) < 5:
+        return {}
+
+    total_syllables = sum(_count_syllables(w) for w in words)
+    avg_sentence_len = len(words) / len(sentences)
+    syllables_per_word = total_syllables / len(words)
+
+    flesch_ease = round(206.835 - 1.015 * avg_sentence_len - 84.6 * syllables_per_word, 1)
+    fk_grade = round(0.39 * avg_sentence_len + 11.8 * syllables_per_word - 15.59, 1)
+
     return {
-        "flesch_reading_ease": round(textstat.flesch_reading_ease(text), 1),
-        "flesch_kincaid_grade": round(textstat.flesch_kincaid_grade(text), 1),
-        "avg_sentence_length": round(textstat.avg_sentence_length(text), 1),
-        "word_count": len(text.split()),
+        "flesch_reading_ease": flesch_ease,
+        "flesch_kincaid_grade": fk_grade,
+        "avg_sentence_length": round(avg_sentence_len, 1),
+        "word_count": len(words),
     }
 
 
