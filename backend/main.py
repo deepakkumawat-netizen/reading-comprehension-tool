@@ -23,14 +23,27 @@ from mcp_tools import MCP_TOOLS, execute_mcp_tool
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+_groq_client = None
+
+
+def get_groq_client() -> Groq:
+    global _groq_client
+    if _groq_client is None:
+        _groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    return _groq_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    rag_retriever.build_index()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[startup] DB init error: {e}")
+    try:
+        rag_retriever.build_index()
+    except Exception as e:
+        print(f"[startup] RAG build error: {e}")
     yield
 
 
@@ -43,8 +56,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-groq_client = Groq(api_key=GROQ_API_KEY)
 
 
 class ComprehensionRequest(BaseModel):
@@ -172,7 +183,7 @@ Generate a complete reading comprehension activity. Return ONLY valid JSON with 
 }}"""
 
     try:
-        resp = groq_client.chat.completions.create(
+        resp = get_groq_client().chat.completions.create(
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.75,
