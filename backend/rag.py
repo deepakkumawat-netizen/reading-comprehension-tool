@@ -1,14 +1,46 @@
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+import math
+import re
+from collections import Counter
+
+
+def _tokenize(text: str) -> list:
+    words = re.findall(r'\b[a-z]{2,}\b', text.lower())
+    bigrams = [f"{words[i]}_{words[i+1]}" for i in range(len(words) - 1)]
+    return words + bigrams
+
+
+def _cosine(vec1: dict, vec2: dict) -> float:
+    dot = sum(vec1.get(t, 0) * vec2.get(t, 0) for t in vec2)
+    n1 = math.sqrt(sum(v * v for v in vec1.values()))
+    n2 = math.sqrt(sum(v * v for v in vec2.values()))
+    if n1 == 0 or n2 == 0:
+        return 0.0
+    return dot / (n1 * n2)
 
 
 class RAGRetriever:
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=2000, ngram_range=(1, 2))
         self._corpus = []
         self._metadata = []
-        self._tfidf_matrix = None
+        self._tfidf = []
+
+    def _build_tfidf(self, docs: list) -> list:
+        tokenized = [_tokenize(d) for d in docs]
+        n = len(tokenized)
+        df = Counter()
+        for tokens in tokenized:
+            df.update(set(tokens))
+
+        result = []
+        for tokens in tokenized:
+            tf = Counter(tokens)
+            total = max(len(tokens), 1)
+            vec = {
+                term: (count / total) * math.log((n + 1) / (df[term] + 1))
+                for term, count in tf.items()
+            }
+            result.append(vec)
+        return result
 
     def build_index(self):
         from database import get_all_comprehensions, get_all_rag_documents
@@ -31,22 +63,24 @@ class RAGRetriever:
             self._corpus.append(d["content"])
             self._metadata.append({"type": "rag_doc", "data": d})
 
-        if self._corpus:
-            self._tfidf_matrix = self.vectorizer.fit_transform(self._corpus)
+        self._tfidf = self._build_tfidf(self._corpus) if self._corpus else []
 
     def retrieve(self, query: str, top_k: int = 3, grade_filter: int = None) -> list:
         if not self._corpus:
             return []
 
-        query_vec = self.vectorizer.transform([query])
-        similarities = cosine_similarity(query_vec, self._tfidf_matrix)[0]
-        top_indices = np.argsort(similarities)[::-1]
+        query_vec = self._build_tfidf([query])[0]
+        scored = [
+            (i, _cosine(query_vec, doc_vec))
+            for i, doc_vec in enumerate(self._tfidf)
+        ]
+        scored.sort(key=lambda x: x[1], reverse=True)
 
         results = []
-        for idx in top_indices:
+        for idx, score in scored:
             if len(results) >= top_k:
                 break
-            if similarities[idx] < 0.05:
+            if score < 0.05:
                 continue
             meta = self._metadata[idx]
             if grade_filter and meta["type"] == "comprehension":
@@ -55,7 +89,7 @@ class RAGRetriever:
             results.append({
                 "content": self._corpus[idx],
                 "metadata": meta,
-                "score": float(similarities[idx])
+                "score": score,
             })
 
         return results
