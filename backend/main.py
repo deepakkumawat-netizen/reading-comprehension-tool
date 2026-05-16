@@ -102,6 +102,30 @@ async def list_comprehensions(limit: int = 20):
 
 # ── Generate ──────────────────────────────────────────────────────────────────
 
+def _validate_reading(data: dict) -> "str | None":
+    """Return an error description string if the comprehension JSON is invalid, else None."""
+    byr = data.get("before_you_read")
+    if not isinstance(byr, dict) or not isinstance(byr.get("questions"), list) or len(byr["questions"]) < 3:
+        count = len(byr["questions"]) if isinstance(byr, dict) and isinstance(byr.get("questions"), list) else "missing"
+        return f"before_you_read.questions must have at least 3 items, got {count}"
+
+    passage = data.get("passage")
+    if not isinstance(passage, dict) or not passage.get("text"):
+        return "passage.text is missing or empty"
+
+    tdq = data.get("text_dependent_questions")
+    if not isinstance(tdq, dict) or not isinstance(tdq.get("questions"), list) or len(tdq["questions"]) < 6:
+        count = len(tdq["questions"]) if isinstance(tdq, dict) and isinstance(tdq.get("questions"), list) else "missing"
+        return f"text_dependent_questions.questions must have at least 6 items, got {count}"
+
+    vic = data.get("vocabulary_in_context")
+    if not isinstance(vic, dict) or not isinstance(vic.get("items"), list) or len(vic["items"]) < 5:
+        count = len(vic["items"]) if isinstance(vic, dict) and isinstance(vic.get("items"), list) else "missing"
+        return f"vocabulary_in_context.items must have at least 5 items, got {count}"
+
+    return None
+
+
 @app.post("/api/reading/generate")
 async def generate_comprehension(req: ComprehensionRequest):
     session_id = req.session_id or create_session()
@@ -114,19 +138,20 @@ async def generate_comprehension(req: ComprehensionRequest):
 
     grade_ctx = get_grade_prompt_context(req.grade_level)
 
-    source_block = ""
-    if req.source_text:
-        source_block = f"\nBase the passage on this source material:\n{req.source_text[:2000]}\n"
+    # Pre-compute optional blocks to avoid backslashes inside f-string expressions
+    source_block = f"\nBase the passage on this source material:\n{req.source_text[:2000]}\n" if req.source_text else ""
+    additional_block = f"Additional Context: {req.additional_context}" if req.additional_context else ""
+    rag_block = f"\n{rag_context}" if rag_context else ""
+    ctx_block = f"{source_block}{additional_block}\n{rag_block}".strip()
 
-    prompt = f"""You are an expert reading specialist creating a Reading Comprehension activity.
+    def _build_prompt(extra_instructions: str = "") -> str:
+        return f"""You are an expert reading specialist creating a Reading Comprehension activity.
 
 {grade_ctx}
 Topic: {req.topic}
 Learning Objective: {req.learning_objective}
-{source_block}
-{f"Additional Context: {req.additional_context}" if req.additional_context else ""}
-{f"\\n{rag_context}" if rag_context else ""}
-
+{ctx_block}
+{extra_instructions}
 Generate a complete reading comprehension activity. Return ONLY valid JSON with this exact structure:
 {{
   "before_you_read": {{
@@ -182,58 +207,146 @@ Generate a complete reading comprehension activity. Return ONLY valid JSON with 
   }}
 }}"""
 
-    try:
-        resp = get_groq_client().chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.75,
-            max_tokens=4000,
-        )
+    def _sse(obj: dict) -> str:
+        return f"data: {json.dumps(obj)}\n\n"
 
-        raw = resp.choices[0].message.content.strip()
-        for fence in ("```json", "```"):
-            if raw.startswith(fence):
-                raw = raw[len(fence):]
-        if raw.endswith("```"):
-            raw = raw[:-3]
+    def stream_gen():
+        max_attempts = 3
+        extra_instructions = ""
+        last_reason = ""
 
-        data = json.loads(raw.strip())
+        for attempt in range(1, max_attempts + 1):
+            if attempt > 1:
+                yield _sse({"type": "retry", "attempt": attempt, "reason": last_reason})
 
-        passage_text = data.get("passage", {}).get("text", "")
-        readability = analyze_text_grade(passage_text)
-        if readability:
-            data["passage"]["readability"] = readability
-            word_count = readability.get("word_count", 0)
-            if word_count:
-                data["passage"]["word_count"] = word_count
+            yield _sse({"type": "progress", "message": f"Attempt {attempt}: calling Groq model…"})
 
-        full_content = {**data, "rag_context_used": bool(rag_context)}
+            prompt = _build_prompt(extra_instructions)
+            collected_chunks = []
 
-        comp_id = save_comprehension(
-            session_id=session_id,
-            topic=req.topic,
-            grade_level=req.grade_level,
-            learning_objective=req.learning_objective,
-            content=full_content,
-        )
+            try:
+                stream = get_groq_client().chat.completions.create(
+                    model=GROQ_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.75,
+                    max_tokens=4000,
+                    stream=True,
+                )
 
-        save_rag_document(
-            content=(
-                f"reading comprehension topic {req.topic} grade {req.grade_level} "
-                f"objective {req.learning_objective} passage: {passage_text[:300]}"
-            ),
-            doc_type="comprehension",
-            topic=req.topic,
-            grade_level=req.grade_level,
-        )
-        rag_retriever.build_index()
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content or ""
+                    if delta:
+                        collected_chunks.append(delta)
+                        yield _sse({"type": "token", "content": delta})
 
-        return {"success": True, "session_id": session_id, "comprehension_id": comp_id, "comprehension": full_content}
+            except Exception as exc:
+                last_reason = str(exc)
+                extra_instructions = f"IMPORTANT: Fix the following error from the previous attempt: {last_reason}\n"
+                continue
 
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"AI returned invalid JSON: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            raw = "".join(collected_chunks).strip()
+            for fence in ("```json", "```"):
+                if raw.startswith(fence):
+                    raw = raw[len(fence):]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            raw = raw.strip()
+
+            yield _sse({"type": "status", "message": "Parsing JSON response…"})
+
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                last_reason = f"Invalid JSON: {exc}"
+                extra_instructions = (
+                    "CRITICAL: Your previous response was not valid JSON. "
+                    "Return ONLY a raw JSON object — no markdown fences, no prose.\n"
+                )
+                continue
+
+            yield _sse({"type": "status", "message": "Validating comprehension structure…"})
+
+            validation_error = _validate_reading(data)
+            if validation_error:
+                last_reason = f"Validation failed: {validation_error}"
+                extra_instructions = (
+                    f"IMPORTANT: Fix this validation error from your previous attempt: {validation_error}. "
+                    "Ensure before_you_read has >=3 questions, passage.text is present, "
+                    "text_dependent_questions has >=6 questions, and vocabulary_in_context has >=5 items.\n"
+                )
+                continue
+
+            yield _sse({"type": "status", "message": "Checking passage readability…"})
+
+            passage_text = data.get("passage", {}).get("text", "")
+            readability = analyze_text_grade(passage_text)
+            fk_grade = readability.get("flesch_kincaid_grade", req.grade_level) if readability else req.grade_level
+
+            if abs(fk_grade - req.grade_level) > 3:
+                last_reason = (
+                    f"Passage readability FK grade {fk_grade:.1f} is more than 3 levels away "
+                    f"from target grade {req.grade_level}"
+                )
+                extra_instructions = (
+                    f"IMPORTANT: Your passage had a Flesch-Kincaid grade of {fk_grade:.1f} "
+                    f"but the target is grade {req.grade_level}. "
+                    "Rewrite the passage so FK grade is within 3 of the target.\n"
+                )
+                continue
+
+            # Annotate passage with readability metrics
+            if readability:
+                data["passage"]["readability"] = readability
+                word_count = readability.get("word_count", 0)
+                if word_count:
+                    data["passage"]["word_count"] = word_count
+
+            yield _sse({"type": "status", "message": "Saving comprehension…"})
+
+            full_content = {**data, "rag_context_used": bool(rag_context)}
+
+            try:
+                comp_id = save_comprehension(
+                    session_id=session_id,
+                    topic=req.topic,
+                    grade_level=req.grade_level,
+                    learning_objective=req.learning_objective,
+                    content=full_content,
+                )
+
+                save_rag_document(
+                    content=(
+                        f"reading comprehension topic {req.topic} grade {req.grade_level} "
+                        f"objective {req.learning_objective} passage: {passage_text[:300]}"
+                    ),
+                    doc_type="comprehension",
+                    topic=req.topic,
+                    grade_level=req.grade_level,
+                )
+                rag_retriever.build_index()
+            except Exception as exc:
+                yield _sse({"type": "error", "message": f"Database error: {exc}"})
+                return
+
+            yield _sse({
+                "type": "complete",
+                "session_id": session_id,
+                "comprehension_id": comp_id,
+                "comprehension": full_content,
+            })
+            return
+
+        # Exhausted all retries
+        yield _sse({"type": "error", "message": f"Failed after {max_attempts} attempts. Last error: {last_reason}"})
+
+    return StreamingResponse(
+        stream_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ── Export DOCX ───────────────────────────────────────────────────────────────

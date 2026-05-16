@@ -12,6 +12,7 @@ export default function App() {
   const [formData, setFormData] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [streamStatus, setStreamStatus] = useState('')
   const [tabs, setTabs] = useState([])
 
   const ensureSession = async () => {
@@ -29,6 +30,7 @@ export default function App() {
   const handleGenerate = async (data) => {
     setLoading(true)
     setError(null)
+    setStreamStatus('')
     setFormData(data)
     try {
       const sid = await ensureSession()
@@ -37,19 +39,48 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, session_id: sid })
       })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.detail || 'Generation failed')
-      setComprehension(result.comprehension)
-      setTabs(prev => {
-        const label = `${data.topic} Reading Compr...`
-        if (prev.find(t => t.label === label)) return prev
-        return [...prev, { label, id: result.comprehension_id }]
-      })
-      setView('result')
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || 'Generation failed')
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          let evt
+          try { evt = JSON.parse(line.slice(6)) } catch { continue }
+
+          if (evt.type === 'progress' || evt.type === 'status') {
+            setStreamStatus(evt.message)
+          } else if (evt.type === 'retry') {
+            setStreamStatus(`Retrying (attempt ${evt.attempt})…`)
+          } else if (evt.type === 'complete') {
+            setComprehension(evt.comprehension)
+            setTabs(prev => {
+              const label = `${data.topic} Reading Compr...`
+              if (prev.find(t => t.label === label)) return prev
+              return [...prev, { label, id: evt.comprehension_id }]
+            })
+            setView('result')
+          } else if (evt.type === 'error') {
+            throw new Error(evt.message)
+          }
+        }
+      }
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
+      setStreamStatus('')
     }
   }
 
@@ -62,6 +93,7 @@ export default function App() {
           onBack={() => setView('home')}
           loading={loading}
           error={error}
+          streamStatus={streamStatus}
         />
       )}
       {view === 'result' && comprehension && (
