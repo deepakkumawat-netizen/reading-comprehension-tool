@@ -1,9 +1,9 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import Sidebar from '../components/Sidebar'
 import ExportDropdown from '../components/ExportDropdown'
 
 export default function ResultPage({ comprehension, formData, tabs, onNewTab, onCloseTab, api }) {
-  const [activeTabIdx, setActiveTabIdx] = [0, () => {}]
+  const [showAnswers, setShowAnswers] = useState(false)
   const contentRef = useRef(null)
 
   const comp = comprehension || {}
@@ -77,10 +77,22 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
         {['↩', '↪', '|', 'T', '|', 'B', 'I', 'U', 'S', '|', '≡', '≡', '≡', '|', '⊞'].map((t, i) => (
           <button key={i} className="px-1.5 py-1 rounded hover:bg-gray-100 font-medium">{t}</button>
         ))}
-        <div className="ml-auto text-gray-300 text-xs">
-          {passage.word_count ? `${passage.word_count} words` : ''}
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            onClick={() => setShowAnswers(a => !a)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
+              showAnswers
+                ? 'border-orange-300 text-orange-600 bg-orange-50'
+                : 'border-gray-200 text-gray-500 hover:border-gray-300'
+            }`}
+          >
+            📋 {showAnswers ? 'Student View' : 'Answer Sheet'}
+          </button>
+          <span className="text-gray-300">
+            {passage.word_count ? `${passage.word_count} words` : ''}
+          </span>
           {comp.rag_context_used && (
-            <span className="ml-3 px-2 py-0.5 rounded-full text-purple-600 bg-purple-50 font-medium">🧠 RAG</span>
+            <span className="px-2 py-0.5 rounded-full text-purple-600 bg-purple-50 font-medium">🧠 RAG</span>
           )}
         </div>
       </div>
@@ -156,9 +168,16 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
               {/* Text-Dependent Questions */}
               {tdq.questions && (
                 <div className="mb-6">
-                  <h2 className="text-base font-bold text-gray-800 mb-2 pb-1 border-b border-gray-200">
-                    {tdq.title || 'Text-Dependent Questions'}
-                  </h2>
+                  <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
+                    <h2 className="text-base font-bold text-gray-800">
+                      {tdq.title || 'Text-Dependent Questions'}
+                    </h2>
+                    {showAnswers && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">
+                        Answer Key
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500 mb-3">{tdq.instructions}</p>
                   <ol className="space-y-4">
                     {tdq.questions.map((q, i) => (
@@ -175,7 +194,13 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                 'bg-purple-100 text-purple-700'
                               }`}>{q.type}</span>
                             </p>
-                            <div className="border-b border-dashed border-gray-200 mt-2 pb-4" />
+                            {showAnswers && q.answer_hint && (
+                              <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                                <p className="text-xs font-semibold text-amber-700 mb-0.5">Suggested Answer:</p>
+                                <p className="text-xs text-amber-800">{q.answer_hint}</p>
+                              </div>
+                            )}
+                            {!showAnswers && <div className="border-b border-dashed border-gray-200 mt-2 pb-4" />}
                           </div>
                         </div>
                       </li>
@@ -187,9 +212,16 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
               {/* Vocabulary in Context */}
               {vic.items && (
                 <div className="mb-4">
-                  <h2 className="text-base font-bold text-gray-800 mb-2 pb-1 border-b border-gray-200">
-                    {vic.title || 'Vocabulary in Context'}
-                  </h2>
+                  <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
+                    <h2 className="text-base font-bold text-gray-800">
+                      {vic.title || 'Vocabulary in Context'}
+                    </h2>
+                    {showAnswers && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">
+                        Answer Key
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500 mb-3">{vic.instructions}</p>
                   <ol className="space-y-5">
                     {vic.items.map((item, i) => (
@@ -201,7 +233,13 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                           From the text: "{item.sentence_from_passage}"
                         </p>
                         <p className="text-sm text-gray-700 mt-2">{item.activity}</p>
-                        <div className="border-b border-dashed border-gray-200 mt-3 pb-2" />
+                        {showAnswers && item.answer && (
+                          <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p className="text-xs font-semibold text-amber-700 mb-0.5">Answer:</p>
+                            <p className="text-xs text-amber-800">{item.answer}</p>
+                          </div>
+                        )}
+                        {!showAnswers && <div className="border-b border-dashed border-gray-200 mt-3 pb-2" />}
                       </li>
                     ))}
                   </ol>
