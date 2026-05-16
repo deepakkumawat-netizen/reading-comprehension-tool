@@ -82,9 +82,27 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
 
       {/* Toolbar */}
       <div className="bg-white border-b border-gray-100 flex items-center gap-1 px-4 py-1.5 text-gray-400 text-xs">
-        {['↩', '↪', '|', 'T', '|', 'B', 'I', 'U', 'S', '|', '≡', '≡', '≡', '|', '⊞'].map((t, i) => (
-          <button key={i} className="px-1.5 py-1 rounded hover:bg-gray-100 font-medium">{t}</button>
-        ))}
+        {[
+          { label: '↩', cmd: () => document.execCommand('undo'), title: 'Undo' },
+          { label: '↪', cmd: () => document.execCommand('redo'), title: 'Redo' },
+          { label: '|', cmd: null },
+          { label: 'B', cmd: () => document.execCommand('bold'), title: 'Bold' },
+          { label: 'I', cmd: () => document.execCommand('italic'), title: 'Italic' },
+          { label: 'U', cmd: () => document.execCommand('underline'), title: 'Underline' },
+          { label: 'S', cmd: () => document.execCommand('strikeThrough'), title: 'Strikethrough' },
+          { label: '|', cmd: null },
+          { label: '≡', cmd: () => document.execCommand('justifyLeft'), title: 'Align Left' },
+          { label: '≡', cmd: () => document.execCommand('justifyCenter'), title: 'Align Center' },
+          { label: '≡', cmd: () => document.execCommand('justifyRight'), title: 'Align Right' },
+        ].map((t, i) => t.label === '|'
+          ? <span key={i} className="text-gray-200 select-none">|</span>
+          : (
+            <button key={i} title={t.title} onClick={t.cmd}
+              className="px-1.5 py-1 rounded hover:bg-gray-100 active:bg-gray-200 transition-colors font-medium cursor-pointer">
+              {t.label}
+            </button>
+          )
+        )}
         <div className="ml-auto flex items-center gap-3">
           <button
             onClick={() => setShowAnswers(a => !a)}
@@ -138,8 +156,11 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
         <div className="flex-1 overflow-y-auto px-8 py-8">
           <div className="max-w-3xl mx-auto">
             <div
+              key={showAnswers}
               ref={contentRef}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px]"
+              contentEditable
+              suppressContentEditableWarning
+              className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px] focus:outline-none"
             >
               {/* Title — matches Screenshot 4 "How Rain Happens" */}
               <h1 className="text-2xl font-bold text-gray-900 mb-6">
