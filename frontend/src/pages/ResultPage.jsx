@@ -127,31 +127,6 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onAction={handleSidebarAction} activeAction={activeSidebar} />
 
-        {/* Side panels */}
-        {activeSidebar === 'Adapt' && (
-          <div className="w-64 border-r border-gray-200 bg-white p-4 flex flex-col gap-3">
-            <h3 className="text-sm font-bold text-gray-800">Adapt Content</h3>
-            <p className="text-xs text-gray-500">Change the reading level or focus to adapt this activity for different learners.</p>
-            <button onClick={onNewTab} className="w-full py-2 rounded-lg text-xs font-semibold text-white" style={{ background: '#E85D04' }}>
-              Create New Version →
-            </button>
-          </div>
-        )}
-        {activeSidebar === 'Images' && (
-          <div className="w-64 border-r border-gray-200 bg-white p-4 flex flex-col gap-3">
-            <h3 className="text-sm font-bold text-gray-800">Images</h3>
-            <p className="text-xs text-gray-500">AI image generation for reading passages — coming soon.</p>
-          </div>
-        )}
-        {activeSidebar === 'History' && (
-          <div className="w-64 border-r border-gray-200 bg-white p-4 flex flex-col gap-3">
-            <h3 className="text-sm font-bold text-gray-800">Session History</h3>
-            <p className="text-xs text-gray-500">Past generated activities appear here. Start a new session to see entries.</p>
-            <button onClick={onNewTab} className="w-full py-2 rounded-lg text-xs font-semibold text-white" style={{ background: '#E85D04' }}>
-              New Activity →
-            </button>
-          </div>
-        )}
 
         <div className="flex-1 overflow-y-auto px-8 py-8">
           <div className="max-w-3xl mx-auto">
