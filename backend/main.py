@@ -485,12 +485,22 @@ async def health():
 
 # ── Serve frontend ────────────────────────────────────────────────────────────
 
-try:
-    frontend_dir = Path(__file__).parent.parent / "frontend" / "dist"
-    if frontend_dir.exists():
+frontend_dir = Path(__file__).parent.parent / "frontend" / "dist"
+
+if frontend_dir.exists():
+    from fastapi.responses import FileResponse
+
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(
+            str(frontend_dir / "index.html"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
+
+    try:
         app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="static")
-except Exception as e:
-    print(f"[startup] Static files mount skipped: {e}")
+    except Exception as e:
+        print(f"[startup] Static files mount skipped: {e}")
 
 
 if __name__ == "__main__":
