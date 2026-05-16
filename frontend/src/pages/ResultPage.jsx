@@ -1,17 +1,50 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
 import ExportDropdown from '../components/ExportDropdown'
 
 export default function ResultPage({ comprehension, formData, tabs, onNewTab, onCloseTab, api }) {
   const [showAnswers, setShowAnswers] = useState(false)
   const [activeSidebar, setActiveSidebar] = useState(null)
+  const [toast, setToast] = useState(null)
+  const [history, setHistory] = useState([])
+  const [showHistory, setShowHistory] = useState(false)
   const contentRef = useRef(null)
 
+  const showToast = (msg) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
   const handleSidebarAction = (label) => {
-    setActiveSidebar(prev => prev === label ? null : label)
-    if (label === 'Create') { onNewTab(); setActiveSidebar(null) }
-    if (label === 'Remix')  { onNewTab(); setActiveSidebar(null) }
-    if (label === 'Evaluate') setShowAnswers(a => !a)
+    if (label === 'Create' || label === 'Adapt' || label === 'Remix') {
+      onNewTab()
+      setActiveSidebar(null)
+      setShowHistory(false)
+      return
+    }
+    if (label === 'Evaluate') {
+      setShowAnswers(a => !a)
+      setActiveSidebar(prev => prev === 'Evaluate' ? null : 'Evaluate')
+      setShowHistory(false)
+      return
+    }
+    if (label === 'Images') {
+      showToast('AI image generation coming soon!')
+      setActiveSidebar(null)
+      return
+    }
+    if (label === 'History') {
+      const next = !showHistory
+      setShowHistory(next)
+      setActiveSidebar(next ? 'History' : null)
+      if (next) {
+        fetch(`${api}/api/comprehensions`)
+          .then(r => r.json())
+          .then(d => setHistory(d.comprehensions || []))
+          .catch(() => setHistory([]))
+      }
+      return
+    }
   }
 
   const comp = comprehension || {}
@@ -123,10 +156,36 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
         </div>
       </div>
 
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 bg-gray-900 text-white text-sm rounded-xl shadow-lg">
+          {toast}
+        </div>
+      )}
+
       {/* Main layout */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onAction={handleSidebarAction} activeAction={activeSidebar} />
 
+        {/* History panel */}
+        {showHistory && (
+          <div className="w-72 border-r border-gray-200 bg-white overflow-y-auto flex-shrink-0">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-800">Session History</span>
+              <button onClick={() => { setShowHistory(false); setActiveSidebar(null) }}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+            </div>
+            {history.length === 0
+              ? <p className="px-4 py-6 text-xs text-gray-400 text-center">No worksheets generated yet this session.</p>
+              : history.map((item, i) => (
+                <div key={i} className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
+                  <p className="text-xs font-medium text-gray-800 truncate">{item.topic || 'Untitled'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Grade {item.grade_level} · {item.created_at || ''}</p>
+                </div>
+              ))
+            }
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-8 py-8">
           <div className="max-w-3xl mx-auto">
