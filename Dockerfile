@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -10,4 +10,4 @@ COPY frontend/dist/ ./frontend/dist/
 
 WORKDIR /app/backend
 
-CMD ["python", "run.py"]
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
