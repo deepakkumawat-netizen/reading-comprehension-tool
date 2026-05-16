@@ -24,6 +24,12 @@ from mcp_tools import MCP_TOOLS, execute_mcp_tool
 load_dotenv()
 
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_FALLBACK_MODELS = [
+    GROQ_MODEL,
+    "llama-3.1-8b-instant",
+    "gemma2-9b-it",
+    "mixtral-8x7b-32768",
+]
 _groq_client = None
 
 
@@ -32,6 +38,11 @@ def get_groq_client() -> Groq:
     if _groq_client is None:
         _groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     return _groq_client
+
+
+def is_rate_limit_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "429" in msg or "rate_limit" in msg or "rate limit" in msg or "tokens per day" in msg
 
 
 @asynccontextmanager
@@ -214,19 +225,21 @@ Generate a complete reading comprehension activity. Return ONLY valid JSON with 
         max_attempts = 3
         extra_instructions = ""
         last_reason = ""
+        model_idx = 0
 
         for attempt in range(1, max_attempts + 1):
             if attempt > 1:
                 yield _sse({"type": "retry", "attempt": attempt, "reason": last_reason})
 
-            yield _sse({"type": "progress", "message": f"Attempt {attempt}: calling Groq model…"})
+            current_model = GROQ_FALLBACK_MODELS[min(model_idx, len(GROQ_FALLBACK_MODELS) - 1)]
+            yield _sse({"type": "progress", "message": f"Attempt {attempt}: calling {current_model}…"})
 
             prompt = _build_prompt(extra_instructions)
             collected_chunks = []
 
             try:
                 stream = get_groq_client().chat.completions.create(
-                    model=GROQ_MODEL,
+                    model=current_model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.75,
                     max_tokens=4000,
@@ -241,7 +254,13 @@ Generate a complete reading comprehension activity. Return ONLY valid JSON with 
 
             except Exception as exc:
                 last_reason = str(exc)
-                extra_instructions = f"IMPORTANT: Fix the following error from the previous attempt: {last_reason}\n"
+                if is_rate_limit_error(exc) and model_idx < len(GROQ_FALLBACK_MODELS) - 1:
+                    model_idx += 1
+                    next_model = GROQ_FALLBACK_MODELS[model_idx]
+                    yield _sse({"type": "status", "message": f"Rate limit hit — switching to {next_model}…"})
+                    extra_instructions = ""
+                else:
+                    extra_instructions = f"IMPORTANT: Fix the following error from the previous attempt: {last_reason}\n"
                 continue
 
             raw = "".join(collected_chunks).strip()
