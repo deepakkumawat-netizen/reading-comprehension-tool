@@ -282,15 +282,15 @@ Generate a complete reading comprehension activity. Return ONLY valid JSON with 
             readability = analyze_text_grade(passage_text)
             fk_grade = readability.get("flesch_kincaid_grade", req.grade_level) if readability else req.grade_level
 
-            if abs(fk_grade - req.grade_level) > 3:
+            if abs(fk_grade - req.grade_level) > 6:
                 last_reason = (
-                    f"Passage readability FK grade {fk_grade:.1f} is more than 3 levels away "
+                    f"Passage readability FK grade {fk_grade:.1f} is more than 6 levels away "
                     f"from target grade {req.grade_level}"
                 )
                 extra_instructions = (
                     f"IMPORTANT: Your passage had a Flesch-Kincaid grade of {fk_grade:.1f} "
                     f"but the target is grade {req.grade_level}. "
-                    "Rewrite the passage so FK grade is within 3 of the target.\n"
+                    "Rewrite the passage so FK grade is within 6 of the target.\n"
                 )
                 continue
 
