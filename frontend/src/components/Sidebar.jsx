@@ -7,7 +7,7 @@ const SIDEBAR_ITEMS = [
   { icon: '⏱', label: 'History' },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ onAction, activeAction }) {
   return (
     <div className="flex flex-col items-center gap-1 py-4 border-r border-gray-200 bg-white"
       style={{ width: 64, minHeight: '100%' }}>
@@ -15,7 +15,12 @@ export default function Sidebar() {
         <button
           key={label}
           title={label}
-          className="flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-all"
+          onClick={() => onAction?.(label)}
+          className={`flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-xl transition-all ${
+            activeAction === label
+              ? 'bg-orange-50 text-orange-600'
+              : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+          }`}
         >
           <span className="text-base leading-none">{icon}</span>
           <span className="text-[9px] font-medium leading-none">{label}</span>
