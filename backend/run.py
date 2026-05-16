@@ -7,7 +7,7 @@ def try_import(name):
     try:
         __import__(name)
         errors.append(f"OK: {name}")
-    except Exception as e:
+    except BaseException as e:
         errors.append(f"FAIL {name}: {e}")
 
 for pkg in ["fastapi", "pydantic", "uvicorn", "groq", "dotenv", "database", "rag", "nlp_adapter", "mcp_tools"]:
@@ -18,22 +18,26 @@ try:
     errors.append("OK: main imported")
     import uvicorn
     port = int(os.environ.get("PORT") or "8000")
-    errors.append(f"OK: starting uvicorn on port {port}")
+    errors.append(f"OK: calling uvicorn.run on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
-except Exception as e:
+    errors.append("INFO: uvicorn.run returned")
+except BaseException as e:
+    if isinstance(e, SystemExit) and e.code == 0:
+        sys.exit(0)
     errors.append(f"CRASH: {traceback.format_exc()}")
-    body = json.dumps({"startup_errors": errors}, indent=2).encode()
 
-    class H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        def log_message(self, *a):
-            pass
+# If we get here, something went wrong — serve errors via fallback HTTP
+body = json.dumps({"startup_errors": errors}, indent=2).encode()
 
-    port = int(os.environ.get("PORT") or "8000")
-    errors.append(f"Fallback HTTP on port {port}")
-    HTTPServer(("0.0.0.0", port), H).serve_forever()
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *a):
+        pass
+
+port = int(os.environ.get("PORT") or "8000")
+HTTPServer(("0.0.0.0", port), H).serve_forever()
