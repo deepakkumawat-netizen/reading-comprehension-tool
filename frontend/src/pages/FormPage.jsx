@@ -47,11 +47,69 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [standardsText, setStandardsText] = useState('')
   const [fileStatus, setFileStatus] = useState('')
   const [blockedMsg, setBlockedMsg] = useState(null)
+  const [listeningFor, setListeningFor] = useState(null)
   const dismissTimer = useRef(null)
+  const recognitionRef = useRef(null)
 
   useEffect(() => {
-    return () => clearTimeout(dismissTimer.current)
+    return () => {
+      clearTimeout(dismissTimer.current)
+      recognitionRef.current?.stop()
+    }
   }, [])
+
+  const startVoice = (field) => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) {
+      showBlocked('Voice input requires Chrome or Edge browser')
+      return
+    }
+    if (listeningFor === field) {
+      recognitionRef.current?.stop()
+      return
+    }
+    recognitionRef.current?.stop()
+    const r = new SR()
+    recognitionRef.current = r
+    r.continuous = true
+    r.interimResults = false
+    r.lang = 'en-US'
+    r.onstart = () => setListeningFor(field)
+    r.onresult = (e) => {
+      const transcript = Array.from(e.results).map(x => x[0].transcript).join(' ')
+      if (field === 'objective') setObjective(t => (t ? t + ' ' : '') + transcript)
+      else setTopic(t => (t ? t + ' ' : '') + transcript.slice(0, 2000))
+    }
+    r.onend = () => setListeningFor(null)
+    r.onerror = () => setListeningFor(null)
+    r.start()
+  }
+
+  const MicBtn = ({ field }) => (
+    <button
+      type="button"
+      onClick={() => startVoice(field)}
+      title={listeningFor === field ? 'Stop recording' : 'Speak your input'}
+      className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all flex-shrink-0 ${
+        listeningFor === field
+          ? 'bg-red-100 text-red-500 animate-pulse'
+          : 'bg-gray-100 text-gray-400 hover:bg-orange-50 hover:text-orange-500'
+      }`}
+    >
+      {listeningFor === field ? (
+        <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
+          <rect x="5" y="5" width="10" height="10" rx="2"/>
+        </svg>
+      ) : (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13">
+          <rect x="7" y="1" width="6" height="10" rx="3"/>
+          <path d="M4 10a6 6 0 0 0 12 0"/>
+          <line x1="10" y1="16" x2="10" y2="19"/>
+          <line x1="7" y1="19" x2="13" y2="19"/>
+        </svg>
+      )}
+    </button>
+  )
 
   const showBlocked = (reason) => {
     setBlockedMsg(reason)
@@ -159,14 +217,17 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                 Learning Objective
                 <span className="text-gray-300 text-xs cursor-help" title="What students should be able to do">ⓘ</span>
               </label>
-              <input
-                type="text"
-                value={objective}
-                onChange={e => setObjective(e.target.value)}
-                placeholder="Students will explore information to describe climates in different regions of the world."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': '#E85D04' }}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={objective}
+                  onChange={e => setObjective(e.target.value)}
+                  placeholder="Students will explore information to describe climates in different regions of the world."
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2"
+                  style={{ '--tw-ring-color': '#E85D04' }}
+                />
+                <MicBtn field="objective" />
+              </div>
             </div>
 
             <div className="mb-4">
@@ -182,7 +243,8 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                   rows={4}
                   className="w-full px-3 pt-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none resize-none"
                 />
-                <div className="flex justify-end px-3 pb-2">
+                <div className="flex items-center justify-between px-3 pb-2">
+                  <MicBtn field="topic" />
                   <span className="text-xs text-gray-300">{topic.length}/2000</span>
                 </div>
               </div>
