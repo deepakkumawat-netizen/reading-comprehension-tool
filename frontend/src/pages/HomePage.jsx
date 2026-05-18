@@ -36,7 +36,6 @@ export default function HomePage({ onStart }) {
           </p>
         </div>
 
-        <style>{`@keyframes blink-orange { 0%,100%{color:#E85D04} 50%{color:transparent} }`}</style>
         <p className="text-center text-xs mt-8 font-semibold" style={{ animation: 'blink-orange 1.2s step-start infinite' }}>
           Powered By Codevidhya
         </p>
