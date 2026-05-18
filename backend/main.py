@@ -516,6 +516,14 @@ if frontend_dir.exists():
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
         )
 
+    @app.get("/assets/index.js")
+    async def serve_js():
+        return FileResponse(
+            str(frontend_dir / "assets" / "index.js"),
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-cache, must-revalidate"},
+        )
+
     try:
         app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="static")
     except Exception as e:
