@@ -28,8 +28,8 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_FALLBACK_MODELS = [
     GROQ_MODEL,
     "llama-3.1-8b-instant",
-    "llama3-8b-8192",
-    "llama3-70b-8192",
+    "llama-3.1-70b-versatile",
+    "deepseek-r1-distill-llama-70b",
 ]
 _groq_client = None
 
