@@ -14,6 +14,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const [loadingAnswer, setLoadingAnswer] = useState(null)
   const [generatedAnswers, setGeneratedAnswers] = useState({})
   const contentRef = useRef(null)
+  const answerTimers = useRef({})
 
   const formatDate = (iso) => {
     try {
@@ -45,7 +46,15 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       })
       const data = await res.json()
       if (data.answer) {
+        if (answerTimers.current[idx]) clearTimeout(answerTimers.current[idx])
         setGeneratedAnswers(prev => ({ ...prev, [idx]: data.answer }))
+        answerTimers.current[idx] = setTimeout(() => {
+          setGeneratedAnswers(prev => {
+            const next = { ...prev }
+            delete next[idx]
+            return next
+          })
+        }, 3 * 60 * 1000)
       }
     } catch {
       showToast('Failed to generate answer. Please try again.')
@@ -154,6 +163,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
 
   return (
     <div className="flex flex-col h-screen" style={{ background: '#FAF9F7' }}>
+      <style>{`@keyframes shrinkBar { from { width: 100%; } to { width: 0%; } }`}</style>
 
       {/* Tab bar + Export — matches Screenshot 4 */}
       <div className="bg-white border-b border-gray-200 flex items-center px-4 gap-2" style={{ minHeight: 44 }}>
@@ -420,8 +430,23 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                     onContextMenu={e => e.preventDefault()}
                                     onCopy={e => e.preventDefault()}
                                   >
-                                    <p className="font-semibold text-blue-600 mb-0.5">Model Answer (read only)</p>
-                                    <p>{generatedAnswers[i]}</p>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className="font-semibold text-blue-600">Model Answer (read only)</p>
+                                      <span className="text-blue-400 text-xs">⏱ Auto-hides in 3 min</span>
+                                    </div>
+                                    <p className="mb-2">{generatedAnswers[i]}</p>
+                                    <div className="h-0.5 bg-blue-100 rounded-full overflow-hidden">
+                                      <div
+                                        key={generatedAnswers[i]}
+                                        style={{
+                                          height: '100%',
+                                          width: '100%',
+                                          background: '#3b82f6',
+                                          borderRadius: '9999px',
+                                          animation: 'shrinkBar 180s linear forwards',
+                                        }}
+                                      />
+                                    </div>
                                   </div>
                                 )}
                               </div>
