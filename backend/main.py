@@ -308,25 +308,9 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
                 )
                 continue
 
-            yield _sse({"type": "status", "message": "Checking passage readability…"})
-
+            # Annotate passage with readability metrics (informational only, not a gate)
             passage_text = data.get("passage", {}).get("text", "")
             readability = analyze_text_grade(passage_text)
-            fk_grade = readability.get("flesch_kincaid_grade", req.grade_level) if readability else req.grade_level
-
-            if abs(fk_grade - req.grade_level) > 6:
-                last_reason = (
-                    f"Passage readability FK grade {fk_grade:.1f} is more than 6 levels away "
-                    f"from target grade {req.grade_level}"
-                )
-                extra_instructions = (
-                    f"IMPORTANT: Your passage had a Flesch-Kincaid grade of {fk_grade:.1f} "
-                    f"but the target is grade {req.grade_level}. "
-                    "Rewrite the passage so FK grade is within 6 of the target.\n"
-                )
-                continue
-
-            # Annotate passage with readability metrics
             if readability:
                 data["passage"]["readability"] = readability
                 word_count = readability.get("word_count", 0)
