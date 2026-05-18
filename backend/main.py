@@ -98,6 +98,7 @@ class CompleteAnswerRequest(BaseModel):
     question: str
     passage_text: str
     grade_level: int
+    word_limit: int = 35
     question_type: Optional[str] = "literal"
     answer_hint: Optional[str] = ""
 
@@ -137,15 +138,18 @@ READING PASSAGE:
 QUESTION TYPE: {req.question_type}
 QUESTION: {req.question}
 
-TASK: Write a complete, grade-appropriate model answer.
-RULES:
-- Use ONLY Grade {req.grade_level} vocabulary and sentence structure: {p['sentence']}
-- Match cognitive level: {p['blooms']}
-- Include specific evidence quoted or paraphrased from the passage
-- Write ONLY the answer text — no labels, no "Answer:", no preamble
-- Keep the answer concise and appropriate for Grade {req.grade_level}
+STRICT WORD LIMIT: {req.word_limit} words maximum. Count every word — do NOT exceed this limit.
 
-Answer:"""
+TASK: Write a model answer in EXACTLY {req.word_limit} words or fewer.
+RULES:
+1. HARD LIMIT: Your answer must be {req.word_limit} words or fewer. This is non-negotiable.
+2. Use ONLY Grade {req.grade_level} vocabulary: {p['vocab']}
+3. Sentence structure for Grade {req.grade_level}: {p['sentence']}
+4. Cognitive level: {p['blooms']}
+5. Reference the passage text as evidence but stay within the word limit.
+6. Write ONLY the answer — no "Answer:", no labels, no explanation outside the answer.
+
+Answer ({req.word_limit} words max):"""
 
     last_error = ""
     for model in GROQ_FALLBACK_MODELS:
@@ -153,11 +157,23 @@ Answer:"""
             response = get_groq_client().chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_tokens=250,
+                temperature=0.3,
+                max_tokens=min(req.word_limit * 3, 300),
             )
             answer = response.choices[0].message.content.strip()
             answer = re.sub(r'^(answer|model answer|response)\s*:\s*', '', answer, flags=re.IGNORECASE).strip()
+
+            # Hard truncate to word limit as safety net
+            words = answer.split()
+            if len(words) > req.word_limit:
+                answer = " ".join(words[:req.word_limit])
+                # End at last complete sentence if possible
+                for punct in ('.', '!', '?'):
+                    last = answer.rfind(punct)
+                    if last > len(answer) // 2:
+                        answer = answer[:last + 1]
+                        break
+
             return {"answer": answer}
         except Exception as exc:
             last_error = str(exc)

@@ -38,6 +38,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
           question: q.question,
           passage_text: comp.passage?.text || '',
           grade_level: formData.grade_level,
+          word_limit: wordLimit,
           question_type: q.type,
           answer_hint: q.answer_hint,
         }),
