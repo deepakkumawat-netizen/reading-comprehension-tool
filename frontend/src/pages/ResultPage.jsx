@@ -12,8 +12,8 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const [showHistory, setShowHistory] = useState(false)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [loadingAnswer, setLoadingAnswer] = useState(null)
+  const [generatedAnswers, setGeneratedAnswers] = useState({})
   const contentRef = useRef(null)
-  const tdqRefs = useRef({})
 
   const formatDate = (iso) => {
     try {
@@ -44,8 +44,8 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
         }),
       })
       const data = await res.json()
-      if (data.answer && tdqRefs.current[idx]) {
-        tdqRefs.current[idx].textContent = data.answer
+      if (data.answer) {
+        setGeneratedAnswers(prev => ({ ...prev, [idx]: data.answer }))
       }
     } catch {
       showToast('Failed to generate answer. Please try again.')
@@ -372,11 +372,6 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                     <h2 className="text-base font-bold text-gray-800">
                       {tdq.title || 'Text-Dependent Questions'}
                     </h2>
-                    {showAnswers && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">
-                        Answer Key
-                      </span>
-                    )}
                   </div>
                   <p className="text-sm text-gray-500 mb-3">{tdq.instructions}</p>
                   <ol className="space-y-4">
@@ -386,6 +381,8 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                           <span className="text-sm font-semibold text-gray-400 shrink-0">{q.number}.</span>
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-800">{q.question}</p>
+
+                            {/* Hint + type badge — visible in both views */}
                             <p className="text-xs text-gray-400 mt-0.5">
                               💡 {q.answer_hint} ·
                               <span className={`ml-1 px-1.5 py-0.5 rounded text-xs font-medium ${
@@ -394,27 +391,23 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                 'bg-purple-100 text-purple-700'
                               }`}>{q.type}</span>
                             </p>
+
+                            {/* Answer Key view */}
                             {showAnswers && q.answer_hint && (
                               <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
                                 <p className="text-xs font-semibold text-amber-700 mb-0.5">Suggested Answer:</p>
                                 <p className="text-xs text-amber-800">{q.answer_hint}</p>
                               </div>
                             )}
+
+                            {/* Student view */}
                             {!showAnswers && (
                               <div className="mt-2">
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
-                                  Word limit: up to {wordLimit} words
-                                </span>
-                                <div
-                                  ref={el => { tdqRefs.current[i] = el }}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  className="min-h-[32px] mt-2 px-1 text-sm text-gray-800 border-b-2 border-dashed border-gray-300 focus:outline-none focus:border-orange-400"
-                                />
+                                {/* Complete Answer button — right after hint */}
                                 <button
                                   onClick={() => handleCompleteAnswer(i, q)}
                                   disabled={loadingAnswer === i}
-                                  className="mt-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                  className="mb-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                 >
                                   {loadingAnswer === i ? (
                                     <>
@@ -423,6 +416,29 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                     </>
                                   ) : '✨ Complete Answer'}
                                 </button>
+
+                                {/* Model answer — read-only, no copy */}
+                                {generatedAnswers[i] && (
+                                  <div
+                                    className="mb-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900"
+                                    style={{ userSelect: 'none' }}
+                                    onContextMenu={e => e.preventDefault()}
+                                    onCopy={e => e.preventDefault()}
+                                  >
+                                    <p className="font-semibold text-blue-600 mb-0.5">Model Answer (read only)</p>
+                                    <p>{generatedAnswers[i]}</p>
+                                  </div>
+                                )}
+
+                                {/* Student answer blank */}
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
+                                  Word limit: up to {wordLimit} words
+                                </span>
+                                <div
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  className="min-h-[32px] mt-2 px-1 text-sm text-gray-800 border-b-2 border-dashed border-gray-300 focus:outline-none focus:border-orange-400"
+                                />
                               </div>
                             )}
                           </div>
@@ -440,11 +456,6 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                     <h2 className="text-base font-bold text-gray-800">
                       {vic.title || 'Vocabulary in Context'}
                     </h2>
-                    {showAnswers && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">
-                        Answer Key
-                      </span>
-                    )}
                   </div>
                   <p className="text-sm text-gray-500 mb-3">{vic.instructions}</p>
                   <ol className="space-y-5">
