@@ -1,8 +1,10 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState } from 'react'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 import Sidebar from '../components/Sidebar'
 import ExportDropdown from '../components/ExportDropdown'
 
-export default function ResultPage({ comprehension, formData, tabs, onNewTab, onCloseTab, api }) {
+export default function ResultPage({ comprehension, formData, tabs, onNewTab, onCloseTab, onAdapt, onRemix, api }) {
   const [showAnswers, setShowAnswers] = useState(false)
   const [activeSidebar, setActiveSidebar] = useState(null)
   const [toast, setToast] = useState(null)
@@ -16,8 +18,20 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   }
 
   const handleSidebarAction = (label) => {
-    if (label === 'Create' || label === 'Adapt' || label === 'Remix') {
+    if (label === 'Create') {
       onNewTab()
+      setActiveSidebar(null)
+      setShowHistory(false)
+      return
+    }
+    if (label === 'Adapt') {
+      onAdapt?.(formData)
+      setActiveSidebar(null)
+      setShowHistory(false)
+      return
+    }
+    if (label === 'Remix') {
+      onRemix?.(formData)
       setActiveSidebar(null)
       setShowHistory(false)
       return
@@ -60,7 +74,23 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
     alert('Copied to clipboard!')
   }
 
-  const handlePdf = () => window.print()
+  const handlePdf = async () => {
+    const element = contentRef.current
+    if (!element) return
+    const canvas = await html2canvas(element, { scale: 2, useCORS: true })
+    const imgData = canvas.toDataURL('image/png')
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    const imgHeight = (canvas.height * pageWidth) / canvas.width
+    let y = 0
+    while (y < imgHeight) {
+      pdf.addImage(imgData, 'PNG', 0, -y, pageWidth, imgHeight)
+      if (y + pageHeight < imgHeight) pdf.addPage()
+      y += pageHeight
+    }
+    pdf.save(`reading_${formData.topic || 'comprehension'}.pdf`)
+  }
 
   const handleDocx = async () => {
     const res = await fetch(`${api}/api/reading/export/docx`, {

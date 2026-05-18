@@ -10,6 +10,7 @@ export default function App() {
   const [sessionId, setSessionId] = useState(null)
   const [comprehension, setComprehension] = useState(null)
   const [formData, setFormData] = useState({})
+  const [prefillData, setPrefillData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [streamStatus, setStreamStatus] = useState('')
@@ -93,7 +94,7 @@ export default function App() {
           onBack={() => setView('home')}
           loading={loading}
           error={error}
-          streamStatus={streamStatus}
+          prefillData={prefillData}
         />
       )}
       {view === 'result' && comprehension && (
@@ -101,7 +102,9 @@ export default function App() {
           comprehension={comprehension}
           formData={formData}
           tabs={tabs}
-          onNewTab={() => setView('form')}
+          onNewTab={() => { setPrefillData(null); setView('form') }}
+          onAdapt={(data) => { setPrefillData(data); setView('form') }}
+          onRemix={(data) => handleGenerate(data)}
           onCloseTab={(idx) => {
             const newTabs = tabs.filter((_, i) => i !== idx)
             setTabs(newTabs)

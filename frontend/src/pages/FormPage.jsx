@@ -12,10 +12,10 @@ const GRADE_MAP = {
   '9th Grade Students': 9, '10th Grade Students': 10, '11th Grade Students': 11, '12th Grade Students': 12
 }
 
-export default function FormPage({ onGenerate, onBack, loading, error, streamStatus }) {
-  const [objective, setObjective] = useState('')
-  const [topic, setTopic] = useState('')
-  const [grade, setGrade] = useState('7th Grade Students')
+export default function FormPage({ onGenerate, onBack, loading, error, prefillData }) {
+  const [objective, setObjective] = useState(prefillData?.learning_objective || '')
+  const [topic, setTopic] = useState(prefillData?.topic || '')
+  const [grade, setGrade] = useState(prefillData?.grade_level || '7th Grade Students')
   const [activeTab, setActiveTab] = useState(null)
   const [additionalContext, setAdditionalContext] = useState('')
   const [websiteUrl, setWebsiteUrl] = useState('')
@@ -285,11 +285,6 @@ export default function FormPage({ onGenerate, onBack, loading, error, streamSta
               )}
             </button>
           </div>
-          {loading && streamStatus && (
-            <p className="text-center text-xs mt-2" style={{ color: '#E85D04' }}>
-              {streamStatus}
-            </p>
-          )}
           {!loading && (
             <p className="text-center text-xs text-gray-400 mt-2">
               AI can make mistakes. Always review content before using in the classroom. ⓘ
