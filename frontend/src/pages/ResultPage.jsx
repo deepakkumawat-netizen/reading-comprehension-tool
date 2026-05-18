@@ -266,12 +266,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
             <div
               key={showAnswers}
               ref={contentRef}
-              contentEditable
-              suppressContentEditableWarning
-              onKeyDown={(e) => {
-                if (e.key === 'Backspace' || e.key === 'Delete') e.preventDefault()
-              }}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px] focus:outline-none"
+              className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px]"
             >
               {/* Title — matches Screenshot 4 "How Rain Happens" */}
               <h1 className="text-2xl font-bold text-gray-900 mb-6">
@@ -292,7 +287,11 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
                           Word limit: up to {wordLimit} words
                         </span>
-                        <div className="border-b border-dashed border-gray-200 mt-2 pb-3" />
+                        <div
+                          contentEditable
+                          suppressContentEditableWarning
+                          className="min-h-[32px] mt-2 px-1 text-sm text-gray-800 border-b-2 border-dashed border-gray-300 focus:outline-none focus:border-orange-400"
+                        />
                       </div>
                     </div>
                   ))}
@@ -378,7 +377,11 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
                                   Word limit: up to {wordLimit} words
                                 </span>
-                                <div className="border-b border-dashed border-gray-200 mt-2 pb-4" />
+                                <div
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  className="min-h-[32px] mt-2 px-1 text-sm text-gray-800 border-b-2 border-dashed border-gray-300 focus:outline-none focus:border-orange-400"
+                                />
                               </div>
                             )}
                           </div>
@@ -424,7 +427,11 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
                               Word limit: up to {wordLimit} words
                             </span>
-                            <div className="border-b border-dashed border-gray-200 mt-2 pb-2" />
+                            <div
+                              contentEditable
+                              suppressContentEditableWarning
+                              className="min-h-[32px] mt-2 px-1 text-sm text-gray-800 border-b-2 border-dashed border-gray-300 focus:outline-none focus:border-orange-400"
+                            />
                           </div>
                         )}
                       </li>
