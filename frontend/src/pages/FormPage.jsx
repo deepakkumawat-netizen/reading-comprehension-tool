@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const GRADE_LEVELS = [
   '1st Grade Students', '2nd Grade Students', '3rd Grade Students', '4th Grade Students', '5th Grade Students',
@@ -13,6 +13,29 @@ const GRADE_MAP = {
   '9th Grade Students': 9, '10th Grade Students': 10, '11th Grade Students': 11, '12th Grade Students': 12
 }
 
+const CONTENT_FLAGS = [
+  { pattern: /https?:\/\//i,                                   label: 'URLs or links' },
+  { pattern: /www\.[a-z]/i,                                    label: 'URLs or links' },
+  { pattern: /\.(com|net|org|io|co|xyz)\b/i,                   label: 'URLs or links' },
+  { pattern: /\b(porn|pornography|xxx|onlyfans)\b/i,           label: 'adult/pornographic content' },
+  { pattern: /\b(nude|nudity|naked|topless)\b/i,               label: 'adult content' },
+  { pattern: /\b(fuck|fucking|fucker|f+u+c+k)\b/i,            label: 'profanity' },
+  { pattern: /\b(shit|bullshit|crap)\b/i,                      label: 'profanity' },
+  { pattern: /\b(bitch|asshole|bastard|damn\s+you)\b/i,        label: 'abusive language' },
+  { pattern: /\b(nigger|nigga|faggot|slut|whore|c+u+n+t)\b/i, label: 'hate speech' },
+  { pattern: /\b(kill\s+yourself|kys|go\s+die)\b/i,            label: 'harmful content' },
+  { pattern: /\b(rape|molest|abuse\s+child)\b/i,               label: 'harmful content' },
+  { pattern: /\b(drug\s+deal|buy\s+drugs|cocaine|heroin|meth)\b/i, label: 'illegal content' },
+  { pattern: /\b(hack|hacking|phishing|malware)\b/i,           label: 'illegal content' },
+]
+
+function checkContent(text) {
+  for (const { pattern, label } of CONTENT_FLAGS) {
+    if (pattern.test(text)) return label
+  }
+  return null
+}
+
 export default function FormPage({ onGenerate, onBack, loading, error, prefillData }) {
   const [objective, setObjective] = useState(prefillData?.learning_objective || '')
   const [topic, setTopic] = useState(prefillData?.topic || '')
@@ -23,6 +46,18 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [standardsText, setStandardsText] = useState('')
   const [fileStatus, setFileStatus] = useState('')
+  const [blockedMsg, setBlockedMsg] = useState(null)
+  const dismissTimer = useRef(null)
+
+  useEffect(() => {
+    return () => clearTimeout(dismissTimer.current)
+  }, [])
+
+  const showBlocked = (reason) => {
+    setBlockedMsg(reason)
+    clearTimeout(dismissTimer.current)
+    dismissTimer.current = setTimeout(() => setBlockedMsg(null), 5000)
+  }
 
   const hasContent = topic.length > 0 || objective.length > 0
 
@@ -44,6 +79,11 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
 
   const handleGenerate = () => {
     if (!objective.trim() && !topic.trim()) return
+    const flagged = checkContent(`${objective} ${topic} ${additionalContext}`)
+    if (flagged) {
+      showBlocked(flagged)
+      return
+    }
     onGenerate({
       topic: topic.trim(),
       grade_level: GRADE_MAP[grade] || 7,
@@ -69,6 +109,31 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#FAF9F7' }}>
+
+      {/* Content safety popup */}
+      {blockedMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+            <div className="bg-red-600 px-6 py-4 flex items-center gap-3">
+              <span className="text-white text-2xl">🚫</span>
+              <p className="text-white font-bold text-base">Content Not Allowed</p>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-gray-800 text-sm font-medium mb-1">
+                This tool is for educational use only.
+              </p>
+              <p className="text-gray-600 text-sm">
+                Your input contains <span className="font-semibold text-red-600">{blockedMsg}</span>, which is not permitted. Please remove it and try again.
+              </p>
+              <div className="mt-4 h-1 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-1 bg-red-500 rounded-full animate-[shrink_5s_linear_forwards]" style={{ animation: 'width 5s linear forwards', width: '100%' }} />
+              </div>
+              <p className="text-xs text-gray-400 mt-2 text-center">This message closes automatically in 5 seconds</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="px-6 pt-5 pb-2">
         <button onClick={onBack} className="text-sm text-gray-400 hover:text-gray-700 flex items-center gap-1">
           ← Back
