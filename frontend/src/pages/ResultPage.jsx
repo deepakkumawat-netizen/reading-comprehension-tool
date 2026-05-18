@@ -382,7 +382,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-800">{q.question}</p>
 
-                            {/* Hint + type badge — visible in both views */}
+                            {/* Hint + type badge */}
                             <p className="text-xs text-gray-400 mt-0.5">
                               💡 {q.answer_hint} ·
                               <span className={`ml-1 px-1.5 py-0.5 rounded text-xs font-medium ${
@@ -392,22 +392,19 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                               }`}>{q.type}</span>
                             </p>
 
-                            {/* Answer Key view */}
-                            {showAnswers && q.answer_hint && (
-                              <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-                                <p className="text-xs font-semibold text-amber-700 mb-0.5">Suggested Answer:</p>
-                                <p className="text-xs text-amber-800">{q.answer_hint}</p>
-                              </div>
-                            )}
-
-                            {/* Student view */}
-                            {!showAnswers && (
+                            {/* Answer Key view: paragraph hint → Complete Answer button → model answer */}
+                            {showAnswers && (
                               <div className="mt-2">
-                                {/* Complete Answer button — right after hint */}
+                                {q.answer_hint && (
+                                  <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg mb-2">
+                                    <p className="text-xs font-semibold text-amber-700 mb-0.5">Paragraph Suggestion:</p>
+                                    <p className="text-xs text-amber-800">{q.answer_hint}</p>
+                                  </div>
+                                )}
                                 <button
                                   onClick={() => handleCompleteAnswer(i, q)}
                                   disabled={loadingAnswer === i}
-                                  className="mb-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                 >
                                   {loadingAnswer === i ? (
                                     <>
@@ -416,11 +413,9 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                     </>
                                   ) : '✨ Complete Answer'}
                                 </button>
-
-                                {/* Model answer — read-only, no copy */}
                                 {generatedAnswers[i] && (
                                   <div
-                                    className="mb-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900"
+                                    className="mt-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900"
                                     style={{ userSelect: 'none' }}
                                     onContextMenu={e => e.preventDefault()}
                                     onCopy={e => e.preventDefault()}
@@ -429,8 +424,12 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                     <p>{generatedAnswers[i]}</p>
                                   </div>
                                 )}
+                              </div>
+                            )}
 
-                                {/* Student answer blank */}
+                            {/* Student view: only word limit + answer blank */}
+                            {!showAnswers && (
+                              <div className="mt-2">
                                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
                                   Word limit: up to {wordLimit} words
                                 </span>
