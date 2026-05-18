@@ -255,7 +255,7 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
                     model=current_model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.75,
-                    max_tokens=4000,
+                    max_tokens=4500,
                     stream=True,
                 )
 
@@ -283,6 +283,9 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
             if raw.endswith("```"):
                 raw = raw[:-3]
             raw = raw.strip()
+            # Remove control characters invalid inside JSON strings (keep \t \n \r)
+            import re as _re
+            raw = _re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', raw)
 
             yield _sse({"type": "status", "message": "Parsing JSON response…"})
 
