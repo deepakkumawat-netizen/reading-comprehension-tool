@@ -186,7 +186,7 @@ Answer ({req.word_limit} words max):"""
 
 # ── Generate ──────────────────────────────────────────────────────────────────
 
-def _validate_reading(data: dict) -> "str | None":
+def _validate_reading(data: dict, grade_level: int = 7) -> "str | None":
     """Return an error description string if the comprehension JSON is invalid, else None."""
     byr = data.get("before_you_read")
     if not isinstance(byr, dict) or not isinstance(byr.get("questions"), list) or len(byr["questions"]) < 3:
@@ -196,6 +196,36 @@ def _validate_reading(data: dict) -> "str | None":
     passage = data.get("passage")
     if not isinstance(passage, dict) or not passage.get("text"):
         return "passage.text is missing or empty"
+
+    passage_text = passage["text"]
+    p = GRADE_PROFILES.get(grade_level, GRADE_PROFILES[7])
+
+    # Word count range validation
+    word_range = p.get("passage_words", "150-400")
+    min_w, max_w = map(int, word_range.split("-"))
+    actual_w = len(passage_text.split())
+    if actual_w > max_w * 1.25:
+        return (
+            f"Passage too long: {actual_w} words. Grade {grade_level} requires {word_range} words. "
+            f"Shorten it significantly."
+        )
+    if actual_w < min_w * 0.75:
+        return (
+            f"Passage too short: {actual_w} words. Grade {grade_level} requires {word_range} words. "
+            f"Expand it."
+        )
+
+    # FK readability gate for grades 1–6 (3 grade-level tolerance)
+    if grade_level <= 6:
+        readability = analyze_text_grade(passage_text)
+        if readability:
+            fk = readability.get("flesch_kincaid_grade", 0)
+            fk_max = float(p.get("fk_target", "0-12").split("-")[1]) + 3.0
+            if fk > fk_max:
+                return (
+                    f"Passage readability FK grade {fk:.1f} is too high for Grade {grade_level} "
+                    f"(target: {p['fk_target']}). Use much simpler vocabulary and shorter sentences."
+                )
 
     tdq = data.get("text_dependent_questions")
     if not isinstance(tdq, dict) or not isinstance(tdq.get("questions"), list) or len(tdq["questions"]) < 6:
@@ -229,11 +259,32 @@ async def generate_comprehension(req: ComprehensionRequest):
     ctx_block = f"{source_block}{additional_block}\n{rag_block}".strip()
 
     def _build_prompt(extra_instructions: str = "") -> str:
+        p = GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])
+        word_range = p["passage_words"]
+
+        # Build strict low-grade vocabulary block
+        if req.grade_level <= 4:
+            max_syl = 2 if req.grade_level <= 3 else 3
+            low_grade_block = f"""
+⚠️ GRADE {req.grade_level} MANDATORY VOCABULARY RULES — VIOLATION = RETRY:
+- Passage MUST be {word_range} words total. Count before submitting.
+- Every word must be understood by a {req.grade_level + 5}-year-old child.
+- Maximum {max_syl} syllables per word in the entire passage.
+- FORBIDDEN in passage: long scientific/academic terms. Instead use simple substitutes:
+    "precipitation" → "rain"   "continental" → "land"   "atmosphere" → "air"
+    "environment" → "place"    "geographical" → "where"  "equatorial" → "hot and near the middle"
+    "temperature" → "how hot"  "humidity" → "wetness"   "vegetation" → "plants"
+- Each sentence: {p['sentence']}
+- Flesch-Kincaid Grade target: {p['fk_target']} (SHORT sentences + SIMPLE words)
+"""
+        else:
+            low_grade_block = f"\n- Passage must be {word_range} words.\n"
+
         return f"""You are an expert reading specialist and curriculum designer.
 Your task is to create a complete, grade-calibrated Reading Comprehension activity.
 
 {grade_ctx}
-
+{low_grade_block}
 CONTENT DETAILS:
 Topic: {req.topic}
 Learning Objective: {req.learning_objective}
@@ -241,7 +292,7 @@ Learning Objective: {req.learning_objective}
 
 CRITICAL RULES:
 1. Every word you write — passage, questions, instructions, hints — must match Grade {req.grade_level} level EXACTLY.
-2. The passage MUST be {GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])['passage_words']} words.
+2. The passage MUST be {word_range} words — count carefully.
 3. Questions must match the Bloom's level specified above. Do NOT write all literal questions.
 4. Vocabulary in Context words must come directly from the passage.
 5. Before You Read questions must activate prior knowledge at a Grade {req.grade_level} cognitive level.
@@ -374,12 +425,13 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
 
             yield _sse({"type": "status", "message": "Validating comprehension structure…"})
 
-            validation_error = _validate_reading(data)
+            validation_error = _validate_reading(data, req.grade_level)
             if validation_error:
                 last_reason = f"Validation failed: {validation_error}"
                 extra_instructions = (
                     f"IMPORTANT: Fix this validation error from your previous attempt: {validation_error}. "
                     "Ensure before_you_read has >=3 questions, passage.text is present, "
+                    f"passage is {GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])['passage_words']} words, "
                     "text_dependent_questions has >=6 questions, and vocabulary_in_context has >=5 items.\n"
                 )
                 continue
