@@ -245,7 +245,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                 ))
               }
             </div>
-            {history.length > 7 && (
+            {history.length > 0 && (
               <div className="px-4 py-2 border-t border-gray-100 flex-shrink-0">
                 <button onClick={() => setShowAllHistory(a => !a)} className="text-xs text-orange-600 hover:text-orange-700 font-medium w-full text-center">
                   {showAllHistory ? '↑ Show last 7 only' : `↓ View all ${history.length} comprehensions`}
