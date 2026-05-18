@@ -232,7 +232,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                 : 'border-gray-200 text-gray-500 hover:border-gray-300'
             }`}
           >
-            📋 {showAnswers ? 'Student View' : 'Answer Sheet'}
+            📋 {showAnswers ? 'Student View' : 'Show Answer Key'}
           </button>
           <span className="text-gray-300">
             {passage.word_count ? `${passage.word_count} words` : ''}
