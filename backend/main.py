@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from database import (init_db, create_session, save_comprehension,
                       get_session_history, get_all_comprehensions, save_rag_document)
 from rag import rag_retriever
-from nlp_adapter import get_grade_prompt_context, analyze_text_grade
+from nlp_adapter import get_grade_prompt_context, analyze_text_grade, GRADE_PROFILES
 from mcp_tools import MCP_TOOLS, execute_mcp_tool
 
 load_dotenv()
@@ -156,64 +156,77 @@ async def generate_comprehension(req: ComprehensionRequest):
     ctx_block = f"{source_block}{additional_block}\n{rag_block}".strip()
 
     def _build_prompt(extra_instructions: str = "") -> str:
-        return f"""You are an expert reading specialist creating a Reading Comprehension activity.
+        return f"""You are an expert reading specialist and curriculum designer.
+Your task is to create a complete, grade-calibrated Reading Comprehension activity.
 
 {grade_ctx}
+
+CONTENT DETAILS:
 Topic: {req.topic}
 Learning Objective: {req.learning_objective}
 {ctx_block}
+
+CRITICAL RULES:
+1. Every word you write — passage, questions, instructions, hints — must match Grade {req.grade_level} level EXACTLY.
+2. The passage MUST be {GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])['passage_words']} words.
+3. Questions must match the Bloom's level specified above. Do NOT write all literal questions.
+4. Vocabulary in Context words must come directly from the passage.
+5. Before You Read questions must activate prior knowledge at a Grade {req.grade_level} cognitive level.
 {extra_instructions}
-Generate a complete reading comprehension activity. Return ONLY valid JSON with this exact structure:
+
+Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
+
 {{
   "before_you_read": {{
     "title": "Before You Read",
-    "instructions": "Think about what you already know. Answer these questions before reading.",
+    "instructions": "Grade {req.grade_level}-appropriate activation prompt here (1 sentence).",
     "questions": [
-      {{"number": 1, "question": "What do you already know about {req.topic}?", "type": "activation"}},
-      {{"number": 2, "question": "What do you predict this passage will be about?", "type": "prediction"}},
-      {{"number": 3, "question": "What questions do you have about {req.topic}?", "type": "inquiry"}}
+      {{"number": 1, "question": "Grade {req.grade_level} prior-knowledge question about {req.topic}", "type": "activation"}},
+      {{"number": 2, "question": "Grade {req.grade_level} prediction question about the passage", "type": "prediction"}},
+      {{"number": 3, "question": "Grade {req.grade_level} inquiry question the student wonders about {req.topic}", "type": "inquiry"}}
     ]
   }},
   "annotation_guide": {{
     "title": "Annotation Guide",
-    "instructions": "As you read, use these symbols to mark the text:",
+    "instructions": "Grade {req.grade_level}-appropriate reading strategy instruction (1 sentence).",
     "symbols": [
-      {{"symbol": "⭐", "meaning": "Important fact or main idea"}},
-      {{"symbol": "?", "meaning": "Something you don't understand"}},
-      {{"symbol": "!", "meaning": "Surprising or interesting information"}},
-      {{"symbol": "→", "meaning": "Cause and effect relationship"}},
-      {{"symbol": "circle", "meaning": "Vocabulary word to look up"}}
+      {{"symbol": "⭐", "meaning": "Grade {req.grade_level} explanation of main idea marking"}},
+      {{"symbol": "?", "meaning": "Grade {req.grade_level} explanation of confusion marking"}},
+      {{"symbol": "!", "meaning": "Grade {req.grade_level} explanation of interesting info marking"}},
+      {{"symbol": "→", "meaning": "Grade {req.grade_level} explanation of cause-effect marking"}},
+      {{"symbol": "circle", "meaning": "Grade {req.grade_level} explanation of vocabulary marking"}}
     ]
   }},
   "passage": {{
-    "title": "Title of the Passage",
-    "text": "Full reading passage here — write a complete, engaging, grade-appropriate passage of the target word count. Include paragraph breaks using \\n\\n.",
+    "title": "Engaging title relevant to {req.topic}",
+    "text": "Write the FULL passage here. Must be {GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])['passage_words']} words. Use paragraph breaks (\\n\\n). Every sentence must match Grade {req.grade_level} syntax and vocabulary.",
     "word_count": 300
   }},
   "text_dependent_questions": {{
     "title": "Text-Dependent Questions",
-    "instructions": "Use evidence from the passage to answer each question.",
+    "instructions": "Grade {req.grade_level}-appropriate instruction for answering with text evidence.",
     "questions": [
-      {{"number": 1, "question": "According to the passage, what is...?", "type": "literal", "answer_hint": "Found in paragraph 1"}},
-      {{"number": 2, "question": "What does the author mean when...?", "type": "literal", "answer_hint": "Found in paragraph 2"}},
-      {{"number": 3, "question": "Why did... happen?", "type": "literal", "answer_hint": "Found in paragraph 2-3"}},
-      {{"number": 4, "question": "What can you infer about...?", "type": "inferential", "answer_hint": "Use clues from paragraph 3"}},
-      {{"number": 5, "question": "How does... relate to...?", "type": "inferential", "answer_hint": "Connect ideas across paragraphs"}},
-      {{"number": 6, "question": "What is the main idea of this passage?", "type": "main_idea", "answer_hint": "Consider all paragraphs"}}
+      {{"number": 1, "question": "Literal question at Grade {req.grade_level} level", "type": "literal", "answer_hint": "Paragraph 1 evidence"}},
+      {{"number": 2, "question": "Literal question at Grade {req.grade_level} level", "type": "literal", "answer_hint": "Paragraph 2 evidence"}},
+      {{"number": 3, "question": "Literal question at Grade {req.grade_level} level", "type": "literal", "answer_hint": "Paragraph 2-3 evidence"}},
+      {{"number": 4, "question": "Inferential question at Grade {req.grade_level} Bloom's level", "type": "inferential", "answer_hint": "Infer from paragraphs 2-3"}},
+      {{"number": 5, "question": "Inferential question at Grade {req.grade_level} Bloom's level", "type": "inferential", "answer_hint": "Connect across paragraphs"}},
+      {{"number": 6, "question": "Higher-order question at Grade {req.grade_level} Bloom's level (Analyze/Evaluate)", "type": "critical_thinking", "answer_hint": "Use whole passage + reasoning"}},
+      {{"number": 7, "question": "Main idea question phrased at Grade {req.grade_level} level", "type": "main_idea", "answer_hint": "Synthesize all paragraphs"}}
     ]
   }},
   "vocabulary_in_context": {{
     "title": "Vocabulary in Context",
-    "instructions": "Use clues from the passage to figure out the meaning of each word.",
+    "instructions": "Grade {req.grade_level}-appropriate vocabulary strategy instruction.",
     "items": [
       {{
-        "word": "word_from_passage",
-        "sentence_from_passage": "The exact sentence containing the word...",
-        "context_clue_type": "definition",
-        "activity": "What does 'word' mean in this sentence? What clues helped you?",
-        "answer": "It means..."
+        "word": "actual word from the passage appropriate for Grade {req.grade_level}",
+        "sentence_from_passage": "Copy the exact sentence from your passage containing this word.",
+        "context_clue_type": "definition|example|contrast|inference",
+        "activity": "Grade {req.grade_level}-appropriate activity using this word",
+        "answer": "Grade {req.grade_level}-appropriate answer"
       }},
-      ... 5 items total
+      ... 5 items total, each word from the passage
     ]
   }}
 }}"""
