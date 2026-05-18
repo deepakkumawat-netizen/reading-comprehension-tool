@@ -144,28 +144,41 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white border-b border-gray-100 flex items-center gap-1 px-4 py-1.5 text-gray-400 text-xs">
-        {[
-          { label: '↩', cmd: () => document.execCommand('undo'), title: 'Undo' },
-          { label: '↪', cmd: () => document.execCommand('redo'), title: 'Redo' },
-          { label: '|', cmd: null },
-          { label: 'B', cmd: () => document.execCommand('bold'), title: 'Bold' },
-          { label: 'I', cmd: () => document.execCommand('italic'), title: 'Italic' },
-          { label: 'U', cmd: () => document.execCommand('underline'), title: 'Underline' },
-          { label: 'S', cmd: () => document.execCommand('strikeThrough'), title: 'Strikethrough' },
-          { label: '|', cmd: null },
-          { label: '≡', cmd: () => document.execCommand('justifyLeft'), title: 'Align Left' },
-          { label: '≡', cmd: () => document.execCommand('justifyCenter'), title: 'Align Center' },
-          { label: '≡', cmd: () => document.execCommand('justifyRight'), title: 'Align Right' },
-        ].map((t, i) => t.label === '|'
-          ? <span key={i} className="text-gray-200 select-none">|</span>
-          : (
-            <button key={i} title={t.title} onClick={t.cmd}
-              className="px-1.5 py-1 rounded hover:bg-gray-100 active:bg-gray-200 transition-colors font-medium cursor-pointer">
-              {t.label}
-            </button>
-          )
-        )}
+      <div className="bg-white border-b border-gray-100 flex items-center gap-0.5 px-4 py-1 text-gray-500 text-xs">
+        {/* Undo / Redo */}
+        <button title="Undo" onClick={() => document.execCommand('undo')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 7H11a3 3 0 0 1 0 6H8"/><polyline points="6,4 3,7 6,10"/></svg>
+        </button>
+        <button title="Redo" onClick={() => document.execCommand('redo')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 7H5a3 3 0 0 0 0 6h3"/><polyline points="10,4 13,7 10,10"/></svg>
+        </button>
+
+        <span className="w-px h-4 bg-gray-200 mx-1"/>
+
+        {/* Formatting */}
+        <button title="Bold" onClick={() => document.execCommand('bold')} className="px-1.5 py-1 rounded hover:bg-gray-100 transition-colors font-bold text-sm">B</button>
+        <button title="Italic" onClick={() => document.execCommand('italic')} className="px-1.5 py-1 rounded hover:bg-gray-100 transition-colors italic text-sm">I</button>
+        <button title="Underline" onClick={() => document.execCommand('underline')} className="px-1.5 py-1 rounded hover:bg-gray-100 transition-colors underline text-sm">U</button>
+        <button title="Strikethrough" onClick={() => document.execCommand('strikeThrough')} className="px-1.5 py-1 rounded hover:bg-gray-100 transition-colors line-through text-sm">S</button>
+
+        <span className="w-px h-4 bg-gray-200 mx-1"/>
+
+        {/* Alignment — each icon shows distinct line pattern */}
+        <button title="Align Left" onClick={() => document.execCommand('justifyLeft')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+            <rect x="1" y="3" width="14" height="1.5" rx="0.75"/><rect x="1" y="7" width="9" height="1.5" rx="0.75"/><rect x="1" y="11" width="11" height="1.5" rx="0.75"/>
+          </svg>
+        </button>
+        <button title="Align Center" onClick={() => document.execCommand('justifyCenter')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+            <rect x="1" y="3" width="14" height="1.5" rx="0.75"/><rect x="3.5" y="7" width="9" height="1.5" rx="0.75"/><rect x="2.5" y="11" width="11" height="1.5" rx="0.75"/>
+          </svg>
+        </button>
+        <button title="Align Right" onClick={() => document.execCommand('justifyRight')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+            <rect x="1" y="3" width="14" height="1.5" rx="0.75"/><rect x="6" y="7" width="9" height="1.5" rx="0.75"/><rect x="4" y="11" width="11" height="1.5" rx="0.75"/>
+          </svg>
+        </button>
         <div className="ml-auto flex items-center gap-3">
           <button
             onClick={() => setShowAnswers(a => !a)}
@@ -255,12 +268,16 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                   </h2>
                   <p className="text-sm text-gray-500 mb-3">{ag.instructions}</p>
                   <ul className="space-y-1.5">
-                    {ag.symbols.map((s, i) => (
+                    {ag.symbols.map((s, i) => {
+                      const SYMBOL_MAP = { '⭐': '★', '→': '→', 'circle': '○', '?': '?', '!': '!' }
+                      const sym = SYMBOL_MAP[s.symbol] || s.symbol
+                      return (
                       <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                        <span className="font-bold text-gray-900">{s.symbol}</span>
+                        <span className="font-bold text-gray-900 min-w-[18px]">{sym}</span>
                         <span>{s.meaning}</span>
                       </li>
-                    ))}
+                      )
+                    })}
                   </ul>
                   <p className="text-sm text-gray-500 mt-3 italic">
                     Read the passage twice. On your first read, follow the Annotation Guide above. On your second read, answer the questions on the next page.
