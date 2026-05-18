@@ -177,11 +177,9 @@ Answer ({req.word_limit} words max):"""
             return {"answer": answer}
         except Exception as exc:
             last_error = str(exc)
-            if is_rate_limit_error(exc):
-                continue
-            raise HTTPException(status_code=500, detail=last_error)
+            continue
 
-    raise HTTPException(status_code=503, detail=f"All models rate limited: {last_error}")
+    raise HTTPException(status_code=503, detail=f"Failed after {len(GROQ_FALLBACK_MODELS)} attempts: {last_error}")
 
 
 # ── Generate ──────────────────────────────────────────────────────────────────
@@ -391,10 +389,10 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
 
             except Exception as exc:
                 last_reason = str(exc)
-                if is_rate_limit_error(exc) and model_idx < len(GROQ_FALLBACK_MODELS) - 1:
+                if model_idx < len(GROQ_FALLBACK_MODELS) - 1:
                     model_idx += 1
                     next_model = GROQ_FALLBACK_MODELS[model_idx]
-                    yield _sse({"type": "status", "message": f"Rate limit hit — switching to {next_model}…"})
+                    yield _sse({"type": "status", "message": f"Model error — switching to {next_model}…"})
                     extra_instructions = ""
                 else:
                     extra_instructions = f"IMPORTANT: Fix the following error from the previous attempt: {last_reason}\n"
