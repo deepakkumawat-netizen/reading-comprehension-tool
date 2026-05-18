@@ -105,6 +105,19 @@ export default function App() {
           onNewTab={() => { setPrefillData(null); setView('form') }}
           onAdapt={(data) => { setPrefillData(data); setView('form') }}
           onRemix={(data) => handleGenerate(data)}
+          onLoadFromHistory={(item) => {
+            setComprehension(item.content)
+            setFormData({
+              topic: item.topic,
+              grade_level: item.grade_level,
+              learning_objective: item.learning_objective,
+            })
+            setTabs(prev => {
+              const label = `${item.topic} Reading Compr...`
+              if (prev.find(t => t.label === label)) return prev
+              return [...prev, { label, id: item.id }]
+            })
+          }}
           onCloseTab={(idx) => {
             const newTabs = tabs.filter((_, i) => i !== idx)
             setTabs(newTabs)

@@ -4,13 +4,22 @@ import html2canvas from 'html2canvas'
 import Sidebar from '../components/Sidebar'
 import ExportDropdown from '../components/ExportDropdown'
 
-export default function ResultPage({ comprehension, formData, tabs, onNewTab, onCloseTab, onAdapt, onRemix, api }) {
+export default function ResultPage({ comprehension, formData, tabs, onNewTab, onCloseTab, onAdapt, onRemix, onLoadFromHistory, api }) {
   const [showAnswers, setShowAnswers] = useState(false)
   const [activeSidebar, setActiveSidebar] = useState(null)
   const [toast, setToast] = useState(null)
   const [history, setHistory] = useState([])
   const [showHistory, setShowHistory] = useState(false)
+  const [showAllHistory, setShowAllHistory] = useState(false)
   const contentRef = useRef(null)
+
+  const formatDate = (iso) => {
+    try {
+      const d = new Date(iso)
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+        ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    } catch { return iso }
+  }
 
   const showToast = (msg) => {
     setToast(msg)
@@ -51,8 +60,9 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       const next = !showHistory
       setShowHistory(next)
       setActiveSidebar(next ? 'History' : null)
+      setShowAllHistory(false)
       if (next) {
-        fetch(`${api}/api/comprehensions`)
+        fetch(`${api}/api/comprehensions?limit=50`)
           .then(r => r.json())
           .then(d => setHistory(d.comprehensions || []))
           .catch(() => setHistory([]))
@@ -212,21 +222,36 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
 
         {/* History panel */}
         {showHistory && (
-          <div className="w-72 border-r border-gray-200 bg-white overflow-y-auto flex-shrink-0">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-800">Session History</span>
+          <div className="w-72 border-r border-gray-200 bg-white flex flex-col flex-shrink-0" style={{ maxHeight: '100%' }}>
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <span className="text-sm font-semibold text-gray-800">
+                {showAllHistory ? 'All History' : 'Recent (Last 7)'}
+              </span>
               <button onClick={() => { setShowHistory(false); setActiveSidebar(null) }}
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
             </div>
-            {history.length === 0
-              ? <p className="px-4 py-6 text-xs text-gray-400 text-center">No worksheets generated yet this session.</p>
-              : history.map((item, i) => (
-                <div key={i} className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
-                  <p className="text-xs font-medium text-gray-800 truncate">{item.topic || 'Untitled'}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Grade {item.grade_level} · {item.created_at || ''}</p>
-                </div>
-              ))
-            }
+            <div className="overflow-y-auto flex-1">
+              {history.length === 0
+                ? <p className="px-4 py-6 text-xs text-gray-400 text-center">No comprehensions generated yet.</p>
+                : (showAllHistory ? history : history.slice(0, 7)).map((item, i) => (
+                  <button
+                    key={item.id || i}
+                    onClick={() => { onLoadFromHistory?.(item); setShowHistory(false); setActiveSidebar(null) }}
+                    className="w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-orange-50 transition-colors group"
+                  >
+                    <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-orange-700">{item.topic || 'Untitled'}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Grade {item.grade_level} · {formatDate(item.created_at)}</p>
+                  </button>
+                ))
+              }
+            </div>
+            {history.length > 7 && (
+              <div className="px-4 py-2 border-t border-gray-100 flex-shrink-0">
+                <button onClick={() => setShowAllHistory(a => !a)} className="text-xs text-orange-600 hover:text-orange-700 font-medium w-full text-center">
+                  {showAllHistory ? '↑ Show last 7 only' : `↓ View all ${history.length} comprehensions`}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
