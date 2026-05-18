@@ -1,8 +1,6 @@
 const ITEMS = [
   {
     label: 'Create',
-    color: '#E85D04',
-    bg: '#FFF4EE',
     title: 'New worksheet from scratch',
     icon: (
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
@@ -14,8 +12,6 @@ const ITEMS = [
   },
   {
     label: 'Adapt',
-    color: '#7c3aed',
-    bg: '#F5F3FF',
     title: 'Edit settings and regenerate',
     icon: (
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
@@ -30,8 +26,6 @@ const ITEMS = [
   },
   {
     label: 'Remix',
-    color: '#0891b2',
-    bg: '#ECFEFF',
     title: 'Regenerate with same settings',
     icon: (
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
@@ -44,8 +38,6 @@ const ITEMS = [
   },
   {
     label: 'Evaluate',
-    color: '#16a34a',
-    bg: '#F0FDF4',
     title: 'Toggle answer sheet',
     icon: (
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
@@ -56,8 +48,6 @@ const ITEMS = [
   },
   {
     label: 'Images',
-    color: '#db2777',
-    bg: '#FDF2F8',
     title: 'Add images (coming soon)',
     icon: (
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
@@ -69,8 +59,6 @@ const ITEMS = [
   },
   {
     label: 'History',
-    color: '#d97706',
-    bg: '#FFFBEB',
     title: 'View session history',
     icon: (
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
@@ -84,24 +72,23 @@ const ITEMS = [
 export default function Sidebar({ onAction, activeAction }) {
   return (
     <div
-      className="flex flex-col items-center gap-1.5 py-4 border-r border-gray-200 bg-white flex-shrink-0"
-      style={{ width: 68, minHeight: '100%' }}
+      className="flex flex-col items-center gap-1 py-4 border-r border-gray-200 bg-white flex-shrink-0"
+      style={{ width: 64, minHeight: '100%' }}
     >
-      {ITEMS.map(({ label, color, bg, title, icon }) => {
+      {ITEMS.map(({ label, title, icon }) => {
         const isActive = activeAction === label
         return (
           <button
             key={label}
             title={title}
             onClick={() => onAction?.(label)}
-            style={isActive ? { color, background: bg, borderColor: color } : {}}
-            className={`flex flex-col items-center justify-center gap-1 w-12 h-14 rounded-xl transition-all border ${
+            className={`flex flex-col items-center justify-center gap-1 w-12 h-14 rounded-xl transition-all ${
               isActive
-                ? 'border opacity-100'
-                : 'border-transparent text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                ? 'bg-orange-50 text-orange-600'
+                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
             }`}
           >
-            <span style={isActive ? { color } : {}}>{icon}</span>
+            {icon}
             <span className="text-[8px] font-semibold leading-none tracking-wide uppercase">
               {label}
             </span>
