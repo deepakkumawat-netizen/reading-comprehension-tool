@@ -262,6 +262,9 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
               ref={contentRef}
               contentEditable
               suppressContentEditableWarning
+              onKeyDown={(e) => {
+                if (e.key === 'Backspace' || e.key === 'Delete') e.preventDefault()
+              }}
               className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px] focus:outline-none"
             >
               {/* Title — matches Screenshot 4 "How Rain Happens" */}
