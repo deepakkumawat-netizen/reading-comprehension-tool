@@ -1,6 +1,36 @@
 import re
 
 GRADE_PROFILES = {
+    1: {
+        "vocab":           "high-frequency sight words and simple CVC phonics words (1 syllable)",
+        "sentence":        "3-5 words; very short subject-verb sentences",
+        "passage_words":   "60-80",
+        "fk_target":       "1.0-1.5",
+        "blooms":          "Remember only — name, identify, point to",
+        "dok":             "DOK 1 — recall",
+        "question_style":  "simple who/what questions; one-word or one-phrase answers only",
+        "theme":           "immediate world: home, family, pets, colors, basic shapes, simple daily routines",
+        "text_structure":  "2-3 very short sentences per idea; single simple topic only",
+        "transitions":     "and, but, then, so",
+        "definition_style":"1 very short sentence using Kindergarten-Grade 1 words only; e.g. 'A pet is an animal you care for.'",
+        "example_style":   "world of a 6-7 year old: toys, family, animals, simple actions",
+        "vocab_instruction":"Use ONLY Dolch/Fry sight words and simple CVC decodable words. Every word must be readable by a Grade 1 student.",
+    },
+    2: {
+        "vocab":           "CVCe long-vowel words, digraphs, common irregular sight words (1-2 syllables)",
+        "sentence":        "4-7 words; simple sentences with familiar nouns and verbs",
+        "passage_words":   "80-120",
+        "fk_target":       "1.5-2.5",
+        "blooms":          "Remember and Understand — recall, identify, describe simply",
+        "dok":             "DOK 1 — recall and reproduction",
+        "question_style":  "literal who/what/when/where questions; 1-2 simple 'why' questions",
+        "theme":           "daily life of a 7-8 year old: school, friends, simple nature, seasons, family",
+        "text_structure":  "one main idea; 2-4 supporting sentences; simple sequence or description",
+        "transitions":     "first, next, then, also, because, but",
+        "definition_style":"1 simple sentence using Grade 1-2 words with familiar example; e.g. 'Hope means you want something good to happen.'",
+        "example_style":   "daily life of a 7-8 year old: school day, playing outside, simple science observations",
+        "vocab_instruction":"Use Grade 2 phonics words (CVCe, blends, digraphs) and high-frequency irregular words. Avoid words with 3+ syllables.",
+    },
     3: {
         "vocab":           "simple, concrete everyday words (1-2 syllables); words children see in daily life",
         "sentence":        "5-8 words; short, direct sentences with one idea each",
@@ -227,7 +257,8 @@ def analyze_text_grade(text: str) -> dict:
 
 
 def difficulty_label(grade: int) -> str:
-    if grade <= 4:    return "Beginner"
+    if grade <= 2:    return "Early Reader"
+    elif grade <= 4:  return "Beginner"
     elif grade <= 6:  return "Elementary"
     elif grade <= 8:  return "Intermediate"
     elif grade <= 10: return "Advanced"

@@ -1,12 +1,13 @@
 import { useState } from 'react'
 
 const GRADE_LEVELS = [
-  '3rd Grade Students', '4th Grade Students', '5th Grade Students',
+  '1st Grade Students', '2nd Grade Students', '3rd Grade Students', '4th Grade Students', '5th Grade Students',
   '6th Grade Students', '7th Grade Students', '8th Grade Students',
   '9th Grade Students', '10th Grade Students', '11th Grade Students', '12th Grade Students'
 ]
 
 const GRADE_MAP = {
+  '1st Grade Students': 1, '2nd Grade Students': 2,
   '3rd Grade Students': 3, '4th Grade Students': 4, '5th Grade Students': 5,
   '6th Grade Students': 6, '7th Grade Students': 7, '8th Grade Students': 8,
   '9th Grade Students': 9, '10th Grade Students': 10, '11th Grade Students': 11, '12th Grade Students': 12
