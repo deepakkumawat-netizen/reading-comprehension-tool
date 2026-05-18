@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import io
+import re
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -93,6 +94,14 @@ class RAGDocRequest(BaseModel):
     grade_level: Optional[int] = 0
 
 
+class CompleteAnswerRequest(BaseModel):
+    question: str
+    passage_text: str
+    grade_level: int
+    question_type: Optional[str] = "literal"
+    answer_hint: Optional[str] = ""
+
+
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/sessions")
@@ -109,6 +118,54 @@ async def session_history(session_id: str):
 @app.get("/api/comprehensions")
 async def list_comprehensions(limit: int = 20):
     return {"comprehensions": get_all_comprehensions(limit)}
+
+
+# ── Complete Answer (NLP-calibrated per grade) ────────────────────────────────
+
+@app.post("/api/reading/complete-answer")
+async def complete_answer(req: CompleteAnswerRequest):
+    p = GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])
+    grade_ctx = get_grade_prompt_context(req.grade_level)
+
+    prompt = f"""You are an expert educator writing a model answer for a Grade {req.grade_level} student.
+
+{grade_ctx}
+
+READING PASSAGE:
+{req.passage_text[:2000]}
+
+QUESTION TYPE: {req.question_type}
+QUESTION: {req.question}
+
+TASK: Write a complete, grade-appropriate model answer.
+RULES:
+- Use ONLY Grade {req.grade_level} vocabulary and sentence structure: {p['sentence']}
+- Match cognitive level: {p['blooms']}
+- Include specific evidence quoted or paraphrased from the passage
+- Write ONLY the answer text — no labels, no "Answer:", no preamble
+- Keep the answer concise and appropriate for Grade {req.grade_level}
+
+Answer:"""
+
+    last_error = ""
+    for model in GROQ_FALLBACK_MODELS:
+        try:
+            response = get_groq_client().chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4,
+                max_tokens=250,
+            )
+            answer = response.choices[0].message.content.strip()
+            answer = re.sub(r'^(answer|model answer|response)\s*:\s*', '', answer, flags=re.IGNORECASE).strip()
+            return {"answer": answer}
+        except Exception as exc:
+            last_error = str(exc)
+            if is_rate_limit_error(exc):
+                continue
+            raise HTTPException(status_code=500, detail=last_error)
+
+    raise HTTPException(status_code=503, detail=f"All models rate limited: {last_error}")
 
 
 # ── Generate ──────────────────────────────────────────────────────────────────

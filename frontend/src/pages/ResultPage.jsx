@@ -11,7 +11,9 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const [history, setHistory] = useState([])
   const [showHistory, setShowHistory] = useState(false)
   const [showAllHistory, setShowAllHistory] = useState(false)
+  const [loadingAnswer, setLoadingAnswer] = useState(null)
   const contentRef = useRef(null)
+  const tdqRefs = useRef({})
 
   const formatDate = (iso) => {
     try {
@@ -24,6 +26,31 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const handleCompleteAnswer = async (idx, q) => {
+    setLoadingAnswer(idx)
+    try {
+      const res = await fetch(`${api}/api/reading/complete-answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: q.question,
+          passage_text: comp.passage?.text || '',
+          grade_level: formData.grade_level,
+          question_type: q.type,
+          answer_hint: q.answer_hint,
+        }),
+      })
+      const data = await res.json()
+      if (data.answer && tdqRefs.current[idx]) {
+        tdqRefs.current[idx].textContent = data.answer
+      }
+    } catch {
+      showToast('Failed to generate answer. Please try again.')
+    } finally {
+      setLoadingAnswer(null)
+    }
   }
 
   const handleSidebarAction = (label) => {
@@ -378,10 +405,23 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                   Word limit: up to {wordLimit} words
                                 </span>
                                 <div
+                                  ref={el => { tdqRefs.current[i] = el }}
                                   contentEditable
                                   suppressContentEditableWarning
                                   className="min-h-[32px] mt-2 px-1 text-sm text-gray-800 border-b-2 border-dashed border-gray-300 focus:outline-none focus:border-orange-400"
                                 />
+                                <button
+                                  onClick={() => handleCompleteAnswer(i, q)}
+                                  disabled={loadingAnswer === i}
+                                  className="mt-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                >
+                                  {loadingAnswer === i ? (
+                                    <>
+                                      <span className="inline-block w-3 h-3 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                                      Generating answer...
+                                    </>
+                                  ) : '✨ Complete Answer'}
+                                </button>
                               </div>
                             )}
                           </div>
