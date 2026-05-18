@@ -77,6 +77,12 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
     r.onstart = () => setListeningFor(field)
     r.onresult = (e) => {
       const transcript = Array.from(e.results).map(x => x[0].transcript).join(' ')
+      const flagged = checkContent(transcript)
+      if (flagged) {
+        r.stop()
+        showBlocked(flagged)
+        return
+      }
       if (field === 'objective') setObjective(t => (t ? t + ' ' : '') + transcript)
       else setTopic(t => (t ? t + ' ' : '') + transcript.slice(0, 2000))
     }
