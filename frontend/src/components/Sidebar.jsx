@@ -37,6 +37,15 @@ const ITEMS = [
     ),
   },
   {
+    label: 'Edit',
+    title: 'Edit worksheet content',
+    icon: (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
+        <path d="M14.5 2.5l3 3L7 16H4v-3L14.5 2.5z"/>
+      </svg>
+    ),
+  },
+  {
     label: 'Evaluate',
     title: 'Toggle answer sheet',
     icon: (

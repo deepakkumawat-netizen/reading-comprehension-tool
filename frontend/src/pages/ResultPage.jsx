@@ -3,10 +3,12 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import Sidebar from '../components/Sidebar'
 import ExportDropdown from '../components/ExportDropdown'
+import EditorToolbar from '../components/EditorToolbar'
 
 export default function ResultPage({ comprehension, formData, tabs, onNewTab, onCloseTab, onAdapt, onRemix, onLoadFromHistory, api }) {
   const [showAnswers, setShowAnswers] = useState(false)
   const [activeSidebar, setActiveSidebar] = useState(null)
+  const [isEditMode, setIsEditMode] = useState(false)
   const [toast, setToast] = useState(null)
   const [history, setHistory] = useState([])
   const [showHistory, setShowHistory] = useState(false)
@@ -80,6 +82,11 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       onRemix?.(formData)
       setActiveSidebar(null)
       setShowHistory(false)
+      return
+    }
+    if (label === 'Edit') {
+      setIsEditMode(e => !e)
+      setActiveSidebar(prev => prev === 'Edit' ? null : 'Edit')
       return
     }
     if (label === 'Evaluate') {
@@ -301,10 +308,14 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
 
         <div className="flex-1 overflow-y-auto px-8 py-8">
           <div className="max-w-3xl mx-auto">
+            {isEditMode && <EditorToolbar onDone={() => { setIsEditMode(false); setActiveSidebar(null) }} />}
             <div
               key={showAnswers}
               ref={contentRef}
               className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px]"
+              contentEditable={isEditMode}
+              suppressContentEditableWarning
+              style={{ outline: isEditMode ? '2px dashed #E85D04' : 'none' }}
             >
               {/* Title — matches Screenshot 4 "How Rain Happens" */}
               <h1 className="text-2xl font-bold text-gray-900 mb-6">
