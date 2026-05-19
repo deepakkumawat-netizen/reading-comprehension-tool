@@ -207,11 +207,7 @@ def _validate_reading(data: dict, grade_level: int = 7) -> "str | None":
             f"Passage too long: {actual_w} words. Grade {grade_level} requires {word_range} words. "
             f"Shorten it significantly."
         )
-    if actual_w < min_w * 0.6:
-        return (
-            f"Passage too short: {actual_w} words. Grade {grade_level} requires {word_range} words. "
-            f"Expand it."
-        )
+
 
     # FK readability gate for grades 1–6 (3 grade-level tolerance)
     if grade_level <= 6:
