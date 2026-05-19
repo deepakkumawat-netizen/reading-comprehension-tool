@@ -5,6 +5,20 @@ import ResultPage from './pages/ResultPage'
 
 const API = import.meta.env.DEV ? '' : ''
 
+const BLOCKED_KEYWORDS = [
+  'sex','sexual','sexuality','porn','pornography','nude','nudity','naked',
+  'vagina','penis','genitals','breast','masturbat','orgasm','erotic',
+  'prostitut','rape','molest','abuse','explicit','adult content',
+  'drug','cocaine','heroin','meth','marijuana','weed','alcohol','beer','whiskey',
+  'kill','murder','suicide','violence','terrorist','bomb','weapon','gun',
+  'hate','racist','racism','sexist','slur','profanity','fuck','shit','ass','bitch','bastard',
+]
+
+const containsBlockedContent = (text = '') => {
+  const lower = text.toLowerCase()
+  return BLOCKED_KEYWORDS.some(word => lower.includes(word))
+}
+
 export default function App() {
   const [view, setView] = useState('home')
   const [sessionId, setSessionId] = useState(null)
@@ -29,6 +43,10 @@ export default function App() {
   }
 
   const handleGenerate = async (data) => {
+    if (containsBlockedContent(data.topic) || containsBlockedContent(data.learning_objective)) {
+      setError('⚠️ Inappropriate content detected. Please enter an educational topic suitable for classroom use.')
+      return
+    }
     setLoading(true)
     setError(null)
     setStreamStatus('')
