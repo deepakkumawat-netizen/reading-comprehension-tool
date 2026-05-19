@@ -9,6 +9,8 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const [showAnswers, setShowAnswers] = useState(false)
   const [activeSidebar, setActiveSidebar] = useState(null)
   const [isEditMode, setIsEditMode] = useState(false)
+  const [editableHTML, setEditableHTML] = useState(null)
+  const editableRef = useRef(null)
   const [toast, setToast] = useState(null)
   const [history, setHistory] = useState([])
   const [showHistory, setShowHistory] = useState(false)
@@ -85,8 +87,15 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       return
     }
     if (label === 'Edit') {
-      setIsEditMode(e => !e)
-      setActiveSidebar(prev => prev === 'Edit' ? null : 'Edit')
+      if (!isEditMode) {
+        setEditableHTML(contentRef.current?.innerHTML || '')
+        setIsEditMode(true)
+        setActiveSidebar('Edit')
+        setTimeout(() => { editableRef.current?.focus() }, 80)
+      } else {
+        setIsEditMode(false)
+        setActiveSidebar(null)
+      }
       return
     }
     if (label === 'Evaluate') {
@@ -309,13 +318,19 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
         <div className="flex-1 overflow-y-auto px-8 py-8">
           <div className="max-w-3xl mx-auto">
             {isEditMode && <EditorToolbar onDone={() => { setIsEditMode(false); setActiveSidebar(null) }} />}
+            {isEditMode ? (
+              <div
+                ref={editableRef}
+                contentEditable
+                suppressContentEditableWarning
+                dangerouslySetInnerHTML={{ __html: editableHTML || '' }}
+                className="bg-white rounded-xl shadow-sm border-2 border-dashed border-orange-400 p-10 min-h-[800px] focus:outline-none"
+              />
+            ) : (
             <div
               key={showAnswers}
               ref={contentRef}
               className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px]"
-              contentEditable={isEditMode}
-              suppressContentEditableWarning
-              style={{ outline: isEditMode ? '2px dashed #E85D04' : 'none' }}
             >
               {/* Title — matches Screenshot 4 "How Rain Happens" */}
               <h1 className="text-2xl font-bold text-gray-900 mb-6">
@@ -527,6 +542,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>
