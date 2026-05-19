@@ -185,51 +185,23 @@ Answer ({req.word_limit} words max):"""
 # ── Generate ──────────────────────────────────────────────────────────────────
 
 def _validate_reading(data: dict, grade_level: int = 7) -> "str | None":
-    """Return an error description string if the comprehension JSON is invalid, else None."""
+    """Return an error description string if the comprehension JSON is invalid, else None.
+    Only validates structure — never rejects based on length or readability scores."""
     byr = data.get("before_you_read")
-    if not isinstance(byr, dict) or not isinstance(byr.get("questions"), list) or len(byr["questions"]) < 3:
-        count = len(byr["questions"]) if isinstance(byr, dict) and isinstance(byr.get("questions"), list) else "missing"
-        return f"before_you_read.questions must have at least 3 items, got {count}"
+    if not isinstance(byr, dict) or not isinstance(byr.get("questions"), list) or len(byr["questions"]) < 1:
+        return "before_you_read.questions is missing or empty"
 
     passage = data.get("passage")
     if not isinstance(passage, dict) or not passage.get("text"):
         return "passage.text is missing or empty"
 
-    passage_text = passage["text"]
-    p = GRADE_PROFILES.get(grade_level, GRADE_PROFILES[7])
-
-    # Word count range validation
-    word_range = p.get("passage_words", "150-400")
-    min_w, max_w = map(int, word_range.split("-"))
-    actual_w = len(passage_text.split())
-    if actual_w > max_w * 1.25:
-        return (
-            f"Passage too long: {actual_w} words. Grade {grade_level} requires {word_range} words. "
-            f"Shorten it significantly."
-        )
-
-
-    # FK readability gate for grades 1–6 (3 grade-level tolerance)
-    if grade_level <= 6:
-        readability = analyze_text_grade(passage_text)
-        if readability:
-            fk = readability.get("flesch_kincaid_grade", 0)
-            fk_max = float(p.get("fk_target", "0-12").split("-")[1]) + 3.0
-            if fk > fk_max:
-                return (
-                    f"Passage readability FK grade {fk:.1f} is too high for Grade {grade_level} "
-                    f"(target: {p['fk_target']}). Use much simpler vocabulary and shorter sentences."
-                )
-
     tdq = data.get("text_dependent_questions")
-    if not isinstance(tdq, dict) or not isinstance(tdq.get("questions"), list) or len(tdq["questions"]) < 6:
-        count = len(tdq["questions"]) if isinstance(tdq, dict) and isinstance(tdq.get("questions"), list) else "missing"
-        return f"text_dependent_questions.questions must have at least 6 items, got {count}"
+    if not isinstance(tdq, dict) or not isinstance(tdq.get("questions"), list) or len(tdq["questions"]) < 1:
+        return "text_dependent_questions.questions is missing or empty"
 
     vic = data.get("vocabulary_in_context")
-    if not isinstance(vic, dict) or not isinstance(vic.get("items"), list) or len(vic["items"]) < 5:
-        count = len(vic["items"]) if isinstance(vic, dict) and isinstance(vic.get("items"), list) else "missing"
-        return f"vocabulary_in_context.items must have at least 5 items, got {count}"
+    if not isinstance(vic, dict) or not isinstance(vic.get("items"), list) or len(vic["items"]) < 1:
+        return "vocabulary_in_context.items is missing or empty"
 
     return None
 
