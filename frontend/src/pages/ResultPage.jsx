@@ -10,6 +10,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const [activeSidebar, setActiveSidebar] = useState(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editableHTML, setEditableHTML] = useState(null)
+  const [savedHTML, setSavedHTML] = useState(null)
   const editableRef = useRef(null)
   const [toast, setToast] = useState(null)
   const [history, setHistory] = useState([])
@@ -204,59 +205,21 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white border-b border-gray-100 flex items-center gap-0.5 px-4 py-1 text-gray-500 text-xs">
-        {/* Undo / Redo */}
-        <button title="Undo" onClick={() => document.execCommand('undo')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 7H11a3 3 0 0 1 0 6H8"/><polyline points="6,4 3,7 6,10"/></svg>
+      <div className="bg-white border-b border-gray-100 flex items-center gap-3 px-4 py-1 text-gray-500 text-xs">
+        <button
+          onClick={() => setShowAnswers(a => !a)}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
+            showAnswers
+              ? 'border-orange-300 text-orange-600 bg-orange-50'
+              : 'border-gray-200 text-gray-500 hover:border-gray-300'
+          }`}
+        >
+          📋 {showAnswers ? 'Student View' : 'Show Answer Key'}
         </button>
-        <button title="Redo" onClick={() => document.execCommand('redo')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 7H5a3 3 0 0 0 0 6h3"/><polyline points="10,4 13,7 10,10"/></svg>
-        </button>
-
-        <span className="w-px h-4 bg-gray-200 mx-1"/>
-
-        {/* Formatting */}
-        <button title="Bold" onClick={() => document.execCommand('bold')} className="px-1.5 py-1 rounded hover:bg-gray-100 transition-colors font-bold text-sm">B</button>
-        <button title="Italic" onClick={() => document.execCommand('italic')} className="px-1.5 py-1 rounded hover:bg-gray-100 transition-colors italic text-sm">I</button>
-        <button title="Underline" onClick={() => document.execCommand('underline')} className="px-1.5 py-1 rounded hover:bg-gray-100 transition-colors underline text-sm">U</button>
-        <button title="Strikethrough" onClick={() => document.execCommand('strikeThrough')} className="px-1.5 py-1 rounded hover:bg-gray-100 transition-colors line-through text-sm">S</button>
-
-        <span className="w-px h-4 bg-gray-200 mx-1"/>
-
-        {/* Alignment — each icon shows distinct line pattern */}
-        <button title="Align Left" onClick={() => document.execCommand('justifyLeft')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-            <rect x="1" y="3" width="14" height="1.5" rx="0.75"/><rect x="1" y="7" width="9" height="1.5" rx="0.75"/><rect x="1" y="11" width="11" height="1.5" rx="0.75"/>
-          </svg>
-        </button>
-        <button title="Align Center" onClick={() => document.execCommand('justifyCenter')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-            <rect x="1" y="3" width="14" height="1.5" rx="0.75"/><rect x="3.5" y="7" width="9" height="1.5" rx="0.75"/><rect x="2.5" y="11" width="11" height="1.5" rx="0.75"/>
-          </svg>
-        </button>
-        <button title="Align Right" onClick={() => document.execCommand('justifyRight')} className="p-1.5 rounded hover:bg-gray-100 transition-colors">
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-            <rect x="1" y="3" width="14" height="1.5" rx="0.75"/><rect x="6" y="7" width="9" height="1.5" rx="0.75"/><rect x="4" y="11" width="11" height="1.5" rx="0.75"/>
-          </svg>
-        </button>
-        <div className="ml-auto flex items-center gap-3">
-          <button
-            onClick={() => setShowAnswers(a => !a)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
-              showAnswers
-                ? 'border-orange-300 text-orange-600 bg-orange-50'
-                : 'border-gray-200 text-gray-500 hover:border-gray-300'
-            }`}
-          >
-            📋 {showAnswers ? 'Student View' : 'Show Answer Key'}
-          </button>
-          <span className="text-gray-300">
-            {passage.word_count ? `${passage.word_count} words` : ''}
-          </span>
-          {comp.rag_context_used && (
-            <span className="px-2 py-0.5 rounded-full text-purple-600 bg-purple-50 font-medium">🧠 RAG</span>
-          )}
-        </div>
+        {passage.word_count ? <span className="text-gray-400">{passage.word_count} words</span> : null}
+        {comp.rag_context_used && (
+          <span className="px-2 py-0.5 rounded-full text-purple-600 bg-purple-50 font-medium">🧠 RAG</span>
+        )}
       </div>
 
       {/* Toast */}
@@ -307,7 +270,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
 
         <div className="flex-1 overflow-y-auto px-8 py-8">
           <div className="max-w-3xl mx-auto">
-            {isEditMode && <EditorToolbar onDone={() => { setIsEditMode(false); setActiveSidebar(null) }} />}
+            {isEditMode && <EditorToolbar onDone={() => { setSavedHTML(editableRef.current?.innerHTML || editableHTML); setIsEditMode(false); setActiveSidebar(null) }} />}
             {isEditMode ? (
               <div
                 ref={editableRef}
@@ -315,6 +278,12 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                 suppressContentEditableWarning
                 dangerouslySetInnerHTML={{ __html: editableHTML || '' }}
                 className="bg-white rounded-xl shadow-sm border-2 border-dashed border-orange-400 p-10 min-h-[800px] focus:outline-none"
+              />
+            ) : savedHTML ? (
+              <div
+                ref={contentRef}
+                dangerouslySetInnerHTML={{ __html: savedHTML }}
+                className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px]"
               />
             ) : (
             <div

@@ -25,18 +25,6 @@ const ITEMS = [
     ),
   },
   {
-    label: 'Remix',
-    title: 'Regenerate with same settings',
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
-        <path d="M4 10a6 6 0 0 1 6-6 6 6 0 0 1 4.2 1.7"/>
-        <path d="M16 10a6 6 0 0 1-6 6 6 6 0 0 1-4.2-1.7"/>
-        <polyline points="14.5,3.5 14.5,7.5 10.5,5.5"/>
-        <polyline points="5.5,16.5 5.5,12.5 9.5,14.5"/>
-      </svg>
-    ),
-  },
-  {
     label: 'Edit',
     title: 'Edit worksheet content',
     icon: (
@@ -52,17 +40,6 @@ const ITEMS = [
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
         <circle cx="10" cy="10" r="7"/>
         <polyline points="7,10 9,12.5 13,8"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Images',
-    title: 'Add images (coming soon)',
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
-        <rect x="3" y="4" width="14" height="12" rx="1.5"/>
-        <circle cx="7.5" cy="8.5" r="1.5"/>
-        <polyline points="3,14 7,10 10,13 13,9 17,14"/>
       </svg>
     ),
   },
