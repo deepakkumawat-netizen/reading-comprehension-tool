@@ -34,7 +34,7 @@ GRADE_PROFILES = {
     3: {
         "vocab":           "simple, concrete everyday words (1-2 syllables); words children see in daily life",
         "sentence":        "5-8 words; short, direct sentences with one idea each",
-        "passage_words":   "150-200",
+        "passage_words":   "100-200",
         "fk_target":       "2.5-3.5",
         "blooms":          "Remember (recall facts) and Understand (describe in own words)",
         "dok":             "DOK 1 — recall and reproduction",
@@ -49,7 +49,7 @@ GRADE_PROFILES = {
     4: {
         "vocab":           "basic academic words (2-3 syllables); familiar content-area words from science and social studies",
         "sentence":        "6-10 words; mostly simple with occasional compound sentences",
-        "passage_words":   "180-230",
+        "passage_words":   "130-230",
         "fk_target":       "3.5-4.5",
         "blooms":          "Remember and Understand; 1-2 Apply questions",
         "dok":             "DOK 1-2 — recall and skill/concept",
@@ -64,7 +64,7 @@ GRADE_PROFILES = {
     5: {
         "vocab":           "grade-appropriate academic words (2-4 syllables); Tier 2 vocabulary; content-area terms",
         "sentence":        "8-12 words; mix of simple and compound sentences",
-        "passage_words":   "200-280",
+        "passage_words":   "150-280",
         "fk_target":       "4.5-5.5",
         "blooms":          "Understand and Apply; 1-2 Analyze questions",
         "dok":             "DOK 2 — skill and concept",
@@ -79,7 +79,7 @@ GRADE_PROFILES = {
     6: {
         "vocab":           "academic and domain-specific words; multi-syllabic Tier 2-3 vocabulary",
         "sentence":        "10-14 words; compound and complex sentences",
-        "passage_words":   "250-320",
+        "passage_words":   "180-320",
         "fk_target":       "5.5-6.5",
         "blooms":          "Apply and Analyze; 1-2 Evaluate questions",
         "dok":             "DOK 2-3 — strategic thinking",
@@ -94,7 +94,7 @@ GRADE_PROFILES = {
     7: {
         "vocab":           "intermediate academic vocabulary; discipline-specific Tier 2-3 words; abstract concepts",
         "sentence":        "12-16 words; varied complex sentence structures including subordinate clauses",
-        "passage_words":   "280-360",
+        "passage_words":   "200-360",
         "fk_target":       "6.5-7.5",
         "blooms":          "Analyze and Evaluate",
         "dok":             "DOK 3 — strategic thinking and extended thinking",
@@ -109,7 +109,7 @@ GRADE_PROFILES = {
     8: {
         "vocab":           "advanced academic vocabulary; abstract concepts; discipline-specific academic language",
         "sentence":        "12-18 words; varied complex structures; subordinate and relative clauses",
-        "passage_words":   "300-400",
+        "passage_words":   "220-400",
         "fk_target":       "7.5-8.5",
         "blooms":          "Analyze, Evaluate, and introductory Create",
         "dok":             "DOK 3-4 — extended thinking",
@@ -124,7 +124,7 @@ GRADE_PROFILES = {
     9: {
         "vocab":           "complex academic and literary words; technical terminology; abstract high-level vocabulary",
         "sentence":        "15-20 words; complex compound-complex sentences; participial and infinitive phrases",
-        "passage_words":   "350-450",
+        "passage_words":   "250-450",
         "fk_target":       "8.5-9.5",
         "blooms":          "Evaluate and Create",
         "dok":             "DOK 3-4",
@@ -139,7 +139,7 @@ GRADE_PROFILES = {
     10: {
         "vocab":           "sophisticated multisyllabic vocabulary; discipline-specific academic language; college-prep level",
         "sentence":        "15-22 words; sophisticated syntax; embedded clauses; parallel structure",
-        "passage_words":   "400-500",
+        "passage_words":   "280-500",
         "fk_target":       "9.5-10.5",
         "blooms":          "Evaluate and Create at high levels",
         "dok":             "DOK 4 — extended thinking",
@@ -154,7 +154,7 @@ GRADE_PROFILES = {
     11: {
         "vocab":           "advanced literary and technical words; SAT/ACT/AP level vocabulary",
         "sentence":        "18-25 words; complex rhetorical structures; varied syntax for effect",
-        "passage_words":   "450-550",
+        "passage_words":   "300-550",
         "fk_target":       "10.5-11.5",
         "blooms":          "Create and Evaluate at advanced levels",
         "dok":             "DOK 4",
@@ -169,7 +169,7 @@ GRADE_PROFILES = {
     12: {
         "vocab":           "collegiate-level vocabulary; technical and field-specific academic language; advanced Tier 3",
         "sentence":        "20+ words; sophisticated complex structures; rhetorical variety",
-        "passage_words":   "500-600",
+        "passage_words":   "350-600",
         "fk_target":       "11.5-12.5",
         "blooms":          "All Bloom's levels with emphasis on Create and Evaluate at college level",
         "dok":             "DOK 4",
