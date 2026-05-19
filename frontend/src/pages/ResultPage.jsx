@@ -442,9 +442,6 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                                 {generatedAnswers[i] && (
                                   <div
                                     className="mt-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900"
-                                    style={{ userSelect: 'none' }}
-                                    onContextMenu={e => e.preventDefault()}
-                                    onCopy={e => e.preventDefault()}
                                   >
                                     <p className="font-semibold text-blue-600 mb-1">Model Answer (read only)</p>
                                     <p>{generatedAnswers[i]}</p>
