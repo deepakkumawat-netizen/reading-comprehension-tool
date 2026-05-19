@@ -4,7 +4,7 @@ GRADE_PROFILES = {
     1: {
         "vocab":           "high-frequency sight words and simple CVC phonics words (1 syllable)",
         "sentence":        "3-5 words; very short subject-verb sentences",
-        "passage_words":   "60-80",
+        "passage_words":   "40-70",
         "fk_target":       "1.0-1.5",
         "blooms":          "Remember only — name, identify, point to",
         "dok":             "DOK 1 — recall",

@@ -357,7 +357,7 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
         return f"data: {json.dumps(obj)}\n\n"
 
     def stream_gen():
-        max_attempts = 3
+        max_attempts = 5
         extra_instructions = ""
         last_reason = ""
         model_idx = 0
