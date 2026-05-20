@@ -229,19 +229,23 @@ async def generate_comprehension(req: ComprehensionRequest):
         word_range = p["passage_words"]
 
         # Build strict low-grade vocabulary block
-        if req.grade_level <= 4:
-            max_syl = 2 if req.grade_level <= 3 else 3
+        if req.grade_level <= 6:
+            max_syl = 2 if req.grade_level <= 3 else (3 if req.grade_level <= 5 else 4)
             low_grade_block = f"""
-⚠️ GRADE {req.grade_level} MANDATORY VOCABULARY RULES — VIOLATION = RETRY:
-- Passage MUST be {word_range} words total. Count before submitting.
+⚠️ GRADE {req.grade_level} MANDATORY RULES — VIOLATION = IMMEDIATE RETRY:
+- Passage MUST be {word_range} words total. COUNT the words before writing. Do NOT exceed the maximum.
 - Every word must be understood by a {req.grade_level + 5}-year-old child.
-- Maximum {max_syl} syllables per word in the entire passage.
-- FORBIDDEN in passage: long scientific/academic terms. Instead use simple substitutes:
-    "precipitation" → "rain"   "continental" → "land"   "atmosphere" → "air"
-    "environment" → "place"    "geographical" → "where"  "equatorial" → "hot and near the middle"
-    "temperature" → "how hot"  "humidity" → "wetness"   "vegetation" → "plants"
-- Each sentence: {p['sentence']}
-- Flesch-Kincaid Grade target: {p['fk_target']} (SHORT sentences + SIMPLE words)
+- Maximum {max_syl} syllables per word in the passage.
+- FORBIDDEN WORDS (never use these): consequently, notwithstanding, conversely, albeit, thereby,
+  in lieu of, furthermore, precipitation, continental, equatorial, atmospheric, geographical,
+  nevertheless, predominantly, subsequently, inherently, ostensibly, paradoxically.
+- Use ONLY these simple transition words: {p['transitions']}
+- Simple word substitutes: "rain" not "precipitation", "land" not "continental",
+  "air" not "atmosphere", "plants" not "vegetation", "hot" not "equatorial",
+  "place" not "environment", "where" not "geographical"
+- Each sentence must be: {p['sentence']}
+- Flesch-Kincaid target: {p['fk_target']} — SHORT sentences + SIMPLE words = low grade level
+- DO NOT write college or high-school level content. Adapt the TOPIC to the grade, not the grade to the topic.
 """
         else:
             low_grade_block = f"\n- Passage must be {word_range} words.\n"
@@ -402,7 +406,7 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
                 )
                 continue
 
-            # Annotate passage with readability metrics (informational only, not a gate)
+            # Annotate passage with readability metrics
             passage_text = data.get("passage", {}).get("text", "")
             readability = analyze_text_grade(passage_text)
             if readability:
@@ -410,6 +414,22 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
                 word_count = readability.get("word_count", 0)
                 if word_count:
                     data["passage"]["word_count"] = word_count
+
+            # Retry if passage is far too long for low grades (soft check — triggers retry, not hard fail)
+            if req.grade_level <= 6 and readability:
+                actual_wc = readability.get("word_count", 0)
+                p_check = GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])
+                max_wc = int(p_check["passage_words"].split("-")[1])
+                if actual_wc > max_wc + 40:
+                    last_reason = f"Passage too long: {actual_wc} words (Grade {req.grade_level} max is {max_wc})"
+                    extra_instructions = (
+                        f"⚠️ REWRITE REQUIRED: Your passage was {actual_wc} words. "
+                        f"Grade {req.grade_level} allows MAXIMUM {max_wc} words. "
+                        f"Write a MUCH shorter, MUCH simpler passage. "
+                        f"Use only simple everyday words. Short sentences only. "
+                        f"Do NOT use: consequently, notwithstanding, conversely, albeit, furthermore.\n"
+                    )
+                    continue
 
             yield _sse({"type": "status", "message": "Saving comprehension…"})
 
