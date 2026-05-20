@@ -229,6 +229,11 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
         </div>
       )}
 
+      {/* Editor toolbar — outside scroll area so it stays fixed while scrolling */}
+      {isEditMode && (
+        <EditorToolbar onDone={() => { setSavedHTML(editableRef.current?.innerHTML || editableHTML); setIsEditMode(false); setActiveSidebar(null) }} />
+      )}
+
       {/* Main layout */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onAction={handleSidebarAction} activeAction={activeSidebar} />
@@ -270,7 +275,6 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
 
         <div className="flex-1 overflow-y-auto px-8 py-8">
           <div className="max-w-3xl mx-auto">
-            {isEditMode && <EditorToolbar onDone={() => { setSavedHTML(editableRef.current?.innerHTML || editableHTML); setIsEditMode(false); setActiveSidebar(null) }} />}
             {isEditMode ? (
               <div
                 ref={editableRef}
