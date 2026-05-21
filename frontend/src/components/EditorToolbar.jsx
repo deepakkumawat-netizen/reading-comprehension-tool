@@ -19,6 +19,17 @@ export default function EditorToolbar({ onDone }) {
 
   const exec = (cmd, val = null) => document.execCommand(cmd, false, val)
 
+  const applyBgColor = (color) => {
+    if (savedSel.current) {
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(savedSel.current)
+    }
+    document.execCommand('styleWithCSS', false, true)
+    document.execCommand('backColor', false, color)
+    document.execCommand('styleWithCSS', false, false)
+  }
+
   const btn = (title, content, cmd, val = null) => (
     <button
       key={title}
@@ -114,7 +125,7 @@ export default function EditorToolbar({ onDone }) {
         </svg>
         <input type="color" defaultValue="#fff9c4"
           onMouseDown={saveSelection}
-          onChange={e => restoreAndExec('backColor', e.target.value)}
+          onChange={e => applyBgColor(e.target.value)}
           className="w-4 h-4 cursor-pointer rounded border-0 p-0"
         />
       </label>
