@@ -106,6 +106,19 @@ export default function EditorToolbar({ onDone }) {
         />
       </label>
 
+      {/* Background Color */}
+      <label title="Background color (fills box/element background)" className="flex items-center gap-0.5 cursor-pointer border border-gray-200 rounded px-1 py-0.5 hover:bg-orange-50 flex-shrink-0">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <rect x="1" y="1" width="11" height="8" rx="1.5" stroke="#888" strokeWidth="1.2" fill="#fde68a"/>
+          <rect x="0" y="10" width="13" height="3" rx="1" fill="#f97316"/>
+        </svg>
+        <input type="color" defaultValue="#fff9c4"
+          onMouseDown={saveSelection}
+          onChange={e => restoreAndExec('backColor', e.target.value)}
+          className="w-4 h-4 cursor-pointer rounded border-0 p-0"
+        />
+      </label>
+
       {sep()}
 
       {/* Lists */}
