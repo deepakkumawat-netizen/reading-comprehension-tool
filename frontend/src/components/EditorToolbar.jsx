@@ -17,42 +17,78 @@ export default function EditorToolbar({ onDone }) {
     document.execCommand(cmd, false, val)
   }
 
-  const btn = (title, label, cmd, cls = '') => (
+  const exec = (cmd, val = null) => document.execCommand(cmd, false, val)
+
+  const btn = (title, content, cmd, val = null) => (
     <button
-      key={cmd + label}
+      key={title}
       title={title}
-      onMouseDown={e => { e.preventDefault(); document.execCommand(cmd, false, null) }}
-      className={`p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-700 text-sm min-w-[28px] text-center transition-colors ${cls}`}
-    >{label}</button>
+      onMouseDown={e => { e.preventDefault(); exec(cmd, val) }}
+      className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-700 text-sm min-w-[26px] text-center transition-colors flex-shrink-0"
+    >{content}</button>
   )
 
+  const sep = () => <div className="w-px h-5 bg-gray-200 mx-0.5 flex-shrink-0" />
+
   return (
-    <div className="flex items-center gap-1 px-3 py-2 bg-white border border-orange-200 rounded-xl shadow-md flex-wrap mb-3 sticky top-2 z-30">
+    <div className="flex items-center gap-0.5 px-3 py-2 bg-white border-b border-gray-200 shadow-sm flex-wrap">
+
+      {/* Undo / Redo */}
       {btn('Undo (Ctrl+Z)', '↩', 'undo')}
       {btn('Redo (Ctrl+Y)', '↪', 'redo')}
-      <div className="w-px h-5 bg-gray-200 mx-1"/>
-      {btn('Bold', 'B', 'bold', 'font-bold')}
-      {btn('Italic', 'I', 'italic', 'italic')}
-      {btn('Underline', 'U', 'underline', 'underline')}
-      {btn('Strikethrough', 'S', 'strikeThrough', 'line-through')}
-      <div className="w-px h-5 bg-gray-200 mx-1"/>
 
+      {sep()}
+
+      {/* Font Family */}
+      <select
+        title="Font family"
+        onMouseDown={saveSelection}
+        onChange={e => restoreAndExec('fontName', e.target.value)}
+        className="text-xs border border-gray-200 rounded px-1 py-1 text-gray-700 cursor-pointer w-[115px] flex-shrink-0"
+      >
+        <option value="">Font</option>
+        <option value="Arial">Arial</option>
+        <option value="Times New Roman">Times New Roman</option>
+        <option value="Courier New">Courier New</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Verdana">Verdana</option>
+        <option value="Trebuchet MS">Trebuchet MS</option>
+        <option value="Comic Sans MS">Comic Sans MS</option>
+        <option value="Impact">Impact</option>
+      </select>
+
+      {/* Font Size */}
       <select
         title="Font size"
         defaultValue="3"
         onMouseDown={saveSelection}
         onChange={e => restoreAndExec('fontSize', e.target.value)}
-        className="text-xs border border-gray-200 rounded px-1 py-1 text-gray-700 cursor-pointer"
+        className="text-xs border border-gray-200 rounded px-1 py-1 text-gray-700 cursor-pointer w-[60px] flex-shrink-0"
       >
-        <option value="1">Small</option>
-        <option value="3">Normal</option>
-        <option value="4">Large</option>
-        <option value="5">X-Large</option>
-        <option value="6">Huge</option>
+        <option value="1">8</option>
+        <option value="2">10</option>
+        <option value="3">12</option>
+        <option value="4">14</option>
+        <option value="5">18</option>
+        <option value="6">24</option>
+        <option value="7">36</option>
       </select>
 
-      <label title="Text color" className="flex items-center gap-0.5 cursor-pointer border border-gray-200 rounded px-1 py-0.5 hover:bg-orange-50">
-        <span className="text-xs font-bold text-gray-600">A</span>
+      {sep()}
+
+      {/* Basic Formatting */}
+      {btn('Bold (Ctrl+B)', <b>B</b>, 'bold')}
+      {btn('Italic (Ctrl+I)', <i>I</i>, 'italic')}
+      {btn('Underline (Ctrl+U)', <u>U</u>, 'underline')}
+      {btn('Strikethrough', <s>S</s>, 'strikeThrough')}
+      {btn('Superscript', <span>x<sup>2</sup></span>, 'superscript')}
+      {btn('Subscript', <span>x<sub>2</sub></span>, 'subscript')}
+
+      {sep()}
+
+      {/* Text Color */}
+      <label title="Text color" className="flex items-center gap-0.5 cursor-pointer border border-gray-200 rounded px-1 py-0.5 hover:bg-orange-50 flex-shrink-0">
+        <span className="text-xs font-bold text-gray-700 underline decoration-red-500">A</span>
         <input type="color" defaultValue="#000000"
           onMouseDown={saveSelection}
           onChange={e => restoreAndExec('foreColor', e.target.value)}
@@ -60,8 +96,9 @@ export default function EditorToolbar({ onDone }) {
         />
       </label>
 
-      <label title="Highlight" className="flex items-center gap-0.5 cursor-pointer border border-gray-200 rounded px-1 py-0.5 hover:bg-orange-50">
-        <span className="text-xs font-bold text-yellow-500">H</span>
+      {/* Highlight Color */}
+      <label title="Highlight color" className="flex items-center gap-0.5 cursor-pointer border border-gray-200 rounded px-1 py-0.5 hover:bg-orange-50 flex-shrink-0">
+        <span className="text-xs font-bold" style={{ color: '#E85D04' }}>H</span>
         <input type="color" defaultValue="#ffff00"
           onMouseDown={saveSelection}
           onChange={e => restoreAndExec('hiliteColor', e.target.value)}
@@ -69,23 +106,97 @@ export default function EditorToolbar({ onDone }) {
         />
       </label>
 
-      <div className="w-px h-5 bg-gray-200 mx-1"/>
-      <button title="Align left" onMouseDown={e => { e.preventDefault(); document.execCommand('justifyLeft') }}
-        className="p-1.5 rounded hover:bg-orange-50 text-gray-600 text-xs">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="1" width="14" height="2"/><rect x="0" y="5" width="10" height="2"/><rect x="0" y="9" width="12" height="2"/></svg>
-      </button>
-      <button title="Center" onMouseDown={e => { e.preventDefault(); document.execCommand('justifyCenter') }}
-        className="p-1.5 rounded hover:bg-orange-50 text-gray-600 text-xs">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="1" width="14" height="2"/><rect x="2" y="5" width="10" height="2"/><rect x="1" y="9" width="12" height="2"/></svg>
-      </button>
-      <button title="Align right" onMouseDown={e => { e.preventDefault(); document.execCommand('justifyRight') }}
-        className="p-1.5 rounded hover:bg-orange-50 text-gray-600 text-xs">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="1" width="14" height="2"/><rect x="4" y="5" width="10" height="2"/><rect x="2" y="9" width="12" height="2"/></svg>
+      {sep()}
+
+      {/* Lists */}
+      <button title="Bullet list" onMouseDown={e => { e.preventDefault(); exec('insertUnorderedList') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-700 transition-colors flex-shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+          <circle cx="1.5" cy="3" r="1.5"/><rect x="4" y="2" width="11" height="2" rx="1"/>
+          <circle cx="1.5" cy="7.5" r="1.5"/><rect x="4" y="6.5" width="11" height="2" rx="1"/>
+          <circle cx="1.5" cy="12" r="1.5"/><rect x="4" y="11" width="11" height="2" rx="1"/>
+        </svg>
       </button>
 
+      <button title="Numbered list" onMouseDown={e => { e.preventDefault(); exec('insertOrderedList') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-700 transition-colors flex-shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+          <text x="0" y="4" fontSize="4" fontFamily="Arial">1.</text>
+          <rect x="4" y="2" width="11" height="2" rx="1"/>
+          <text x="0" y="8.5" fontSize="4" fontFamily="Arial">2.</text>
+          <rect x="4" y="6.5" width="11" height="2" rx="1"/>
+          <text x="0" y="13" fontSize="4" fontFamily="Arial">3.</text>
+          <rect x="4" y="11" width="11" height="2" rx="1"/>
+        </svg>
+      </button>
+
+      {/* Indent / Outdent */}
+      <button title="Decrease indent" onMouseDown={e => { e.preventDefault(); exec('outdent') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-700 transition-colors flex-shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+          <rect x="0" y="1" width="15" height="2" rx="1"/>
+          <rect x="4" y="5" width="11" height="2" rx="1"/>
+          <rect x="4" y="9" width="11" height="2" rx="1"/>
+          <rect x="0" y="13" width="15" height="2" rx="1"/>
+          <polygon points="3,6 0,7.5 3,9"/>
+        </svg>
+      </button>
+
+      <button title="Increase indent" onMouseDown={e => { e.preventDefault(); exec('indent') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-700 transition-colors flex-shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+          <rect x="0" y="1" width="15" height="2" rx="1"/>
+          <rect x="4" y="5" width="11" height="2" rx="1"/>
+          <rect x="4" y="9" width="11" height="2" rx="1"/>
+          <rect x="0" y="13" width="15" height="2" rx="1"/>
+          <polygon points="0,6 3,7.5 0,9"/>
+        </svg>
+      </button>
+
+      {sep()}
+
+      {/* Alignment */}
+      <button title="Align left" onMouseDown={e => { e.preventDefault(); exec('justifyLeft') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-600 transition-colors flex-shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+          <rect x="0" y="1" width="15" height="2" rx="1"/><rect x="0" y="5" width="10" height="2" rx="1"/>
+          <rect x="0" y="9" width="13" height="2" rx="1"/><rect x="0" y="13" width="8" height="2" rx="1"/>
+        </svg>
+      </button>
+      <button title="Align center" onMouseDown={e => { e.preventDefault(); exec('justifyCenter') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-600 transition-colors flex-shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+          <rect x="0" y="1" width="15" height="2" rx="1"/><rect x="2.5" y="5" width="10" height="2" rx="1"/>
+          <rect x="1" y="9" width="13" height="2" rx="1"/><rect x="3.5" y="13" width="8" height="2" rx="1"/>
+        </svg>
+      </button>
+      <button title="Align right" onMouseDown={e => { e.preventDefault(); exec('justifyRight') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-600 transition-colors flex-shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+          <rect x="0" y="1" width="15" height="2" rx="1"/><rect x="5" y="5" width="10" height="2" rx="1"/>
+          <rect x="2" y="9" width="13" height="2" rx="1"/><rect x="7" y="13" width="8" height="2" rx="1"/>
+        </svg>
+      </button>
+      <button title="Justify" onMouseDown={e => { e.preventDefault(); exec('justifyFull') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-600 transition-colors flex-shrink-0">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+          <rect x="0" y="1" width="15" height="2" rx="1"/><rect x="0" y="5" width="15" height="2" rx="1"/>
+          <rect x="0" y="9" width="15" height="2" rx="1"/><rect x="0" y="13" width="10" height="2" rx="1"/>
+        </svg>
+      </button>
+
+      {sep()}
+
+      {/* Clear Formatting */}
+      <button title="Clear formatting" onMouseDown={e => { e.preventDefault(); exec('removeFormat') }}
+        className="p-1.5 rounded hover:bg-orange-50 hover:text-orange-600 text-gray-700 text-xs transition-colors flex-shrink-0 font-bold">
+        T<span className="text-red-400">✕</span>
+      </button>
+
+      {/* Done Editing */}
       <button
         onMouseDown={e => { e.preventDefault(); onDone() }}
-        className="ml-auto px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
+        className="ml-auto px-3 py-1.5 rounded-lg text-sm font-semibold text-white flex-shrink-0"
         style={{ background: '#E85D04' }}
       >
         ✓ Done Editing
