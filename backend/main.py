@@ -186,7 +186,7 @@ Answer ({req.word_limit} words max):"""
 
 def _validate_reading(data: dict, grade_level: int = 7) -> "str | None":
     """Return an error description string if the comprehension JSON is invalid, else None.
-    Only validates structure — never rejects based on length or readability scores."""
+    Validates structure AND that the passage length roughly matches the grade."""
     byr = data.get("before_you_read")
     if not isinstance(byr, dict) or not isinstance(byr.get("questions"), list) or len(byr["questions"]) < 1:
         return "before_you_read.questions is missing or empty"
@@ -194,6 +194,22 @@ def _validate_reading(data: dict, grade_level: int = 7) -> "str | None":
     passage = data.get("passage")
     if not isinstance(passage, dict) or not passage.get("text"):
         return "passage.text is missing or empty"
+
+    # Reject passages grossly longer than the grade's range (e.g. Grade 1 getting
+    # 263 words). Uses 1.6x the grade max as the ceiling to allow some flexibility.
+    try:
+        p = GRADE_PROFILES.get(grade_level, GRADE_PROFILES[7])
+        rng = p.get("passage_words", "")
+        nums = [int(x) for x in re.findall(r"\d+", rng)]
+        if nums:
+            max_words = max(nums)
+            actual = len(passage["text"].split())
+            ceiling = int(max_words * 1.6)
+            if actual > ceiling:
+                return (f"passage is {actual} words but Grade {grade_level} must be "
+                        f"{rng} words. Rewrite it MUCH shorter — no more than {max_words} words.")
+    except Exception:
+        pass
 
     tdq = data.get("text_dependent_questions")
     if not isinstance(tdq, dict) or not isinstance(tdq.get("questions"), list) or len(tdq["questions"]) < 1:

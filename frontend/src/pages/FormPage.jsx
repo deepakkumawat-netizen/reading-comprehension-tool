@@ -13,6 +13,22 @@ const GRADE_MAP = {
   '9th Grade Students': 9, '10th Grade Students': 10, '11th Grade Students': 11, '12th Grade Students': 12
 }
 
+// Resolve a grade value (string label, plain number, or "1st Grade Students")
+// to its integer 1-12. Returns null if it can't be determined.
+function resolveGradeNum(g) {
+  if (typeof g === 'number' && g >= 1 && g <= 12) return g
+  if (GRADE_MAP[g]) return GRADE_MAP[g]
+  const m = String(g || '').match(/\d+/)
+  const n = m ? parseInt(m[0], 10) : null
+  return n && n >= 1 && n <= 12 ? n : null
+}
+
+// Convert a stored grade value back to its dropdown label so the <select> shows it
+function gradeToLabel(g) {
+  const n = resolveGradeNum(g)
+  return n ? GRADE_LEVELS[n - 1] : ''
+}
+
 const CONTENT_FLAGS = [
   { pattern: /https?:\/\//i,                                   label: 'URLs or links' },
   { pattern: /www\.[a-z]/i,                                    label: 'URLs or links' },
@@ -39,7 +55,7 @@ function checkContent(text) {
 export default function FormPage({ onGenerate, onBack, loading, error, prefillData }) {
   const [objective, setObjective] = useState(prefillData?.learning_objective || '')
   const [topic, setTopic] = useState(prefillData?.topic || '')
-  const [grade, setGrade] = useState(prefillData?.grade_level || '')
+  const [grade, setGrade] = useState(gradeToLabel(prefillData?.grade_level))
   const [activeTab, setActiveTab] = useState(null)
   const [additionalContext, setAdditionalContext] = useState('')
   const [websiteUrl, setWebsiteUrl] = useState('')
@@ -148,9 +164,14 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       showBlocked(flagged)
       return
     }
+    const gradeNum = resolveGradeNum(grade)
+    if (!gradeNum) {
+      showBlocked('Please select a Reading Level (grade) before generating.')
+      return
+    }
     onGenerate({
       topic: topic.trim(),
-      grade_level: GRADE_MAP[grade] || 7,
+      grade_level: gradeNum,
       learning_objective: objective.trim(),
       additional_context: additionalContext || undefined,
     })
