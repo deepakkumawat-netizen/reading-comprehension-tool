@@ -6,3 +6,4 @@ pydantic>=2.10.4
 pypdf>=4.0.0
 python-docx>=1.1.0
 python-multipart>=0.0.9
+json-repair>=0.30.0

@@ -361,15 +361,29 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
 
             yield _sse({"type": "status", "message": "Parsing JSON response…"})
 
+            # Isolate the JSON object (drop any stray prose before/after)
+            first, last = raw.find("{"), raw.rfind("}")
+            if first != -1 and last != -1 and last > first:
+                raw = raw[first:last + 1]
+
+            data = None
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError as exc:
-                last_reason = f"Invalid JSON: {exc}"
-                extra_instructions = (
-                    "CRITICAL: Your previous response was not valid JSON. "
-                    "Return ONLY a raw JSON object — no markdown fences, no prose.\n"
-                )
-                continue
+                # LLMs often emit unescaped quotes/apostrophes or trailing commas.
+                # json-repair fixes these instead of forcing another full retry.
+                try:
+                    from json_repair import repair_json
+                    repaired = repair_json(raw)
+                    data = json.loads(repaired)
+                except Exception:
+                    last_reason = f"Invalid JSON: {exc}"
+                    extra_instructions = (
+                        "CRITICAL: Your previous response was not valid JSON. "
+                        "Return ONLY a raw JSON object — no markdown fences, no prose. "
+                        "Escape every double-quote inside string values as \\\".\n"
+                    )
+                    continue
 
             yield _sse({"type": "status", "message": "Validating comprehension structure…"})
 
