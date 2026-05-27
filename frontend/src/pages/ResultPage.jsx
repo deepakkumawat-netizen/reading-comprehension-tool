@@ -71,6 +71,12 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   }
 
   const handleSidebarAction = (label) => {
+    // Any action other than toggling Edit must first leave edit mode, otherwise
+    // the editable overlay stays on top and the action appears to do nothing.
+    if (label !== 'Edit' && isEditMode) {
+      setIsEditMode(false)
+    }
+
     if (label === 'Create') {
       onNewTab()
       setActiveSidebar(null)
@@ -102,6 +108,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       return
     }
     if (label === 'Evaluate') {
+      setSavedHTML(null)  // clear frozen edits so the dynamic answer view renders
       setShowAnswers(a => !a)
       setActiveSidebar(prev => prev === 'Evaluate' ? null : 'Evaluate')
       setShowHistory(false)
@@ -218,7 +225,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       {/* Toolbar */}
       <div className="bg-white border-b border-gray-100 flex items-center gap-3 px-4 py-1 text-gray-500 text-xs">
         <button
-          onClick={() => setShowAnswers(a => !a)}
+          onClick={() => { setIsEditMode(false); setSavedHTML(null); setShowAnswers(a => !a) }}
           className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
             showAnswers
               ? 'border-orange-300 text-orange-600 bg-orange-50'
