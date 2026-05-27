@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import Sidebar from '../components/Sidebar'
@@ -19,6 +19,17 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const [loadingAnswer, setLoadingAnswer] = useState(null)
   const [generatedAnswers, setGeneratedAnswers] = useState({})
   const contentRef = useRef(null)
+
+  // When a different passage is loaded (from history or a new generation),
+  // clear frozen edited HTML and reset to student view so the Answer Key
+  // toggle works on the freshly-loaded content.
+  useEffect(() => {
+    setSavedHTML(null)
+    setShowAnswers(false)
+    setIsEditMode(false)
+    setEditableHTML(null)
+    setGeneratedAnswers({})
+  }, [comprehension])
 
   const formatDate = (iso) => {
     try {
