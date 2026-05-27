@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from database import (init_db, create_session, save_comprehension,
                       get_session_history, get_all_comprehensions, save_rag_document)
 from rag import rag_retriever
-from nlp_adapter import get_grade_prompt_context, analyze_text_grade, GRADE_PROFILES
+from nlp_adapter import get_grade_prompt_context, analyze_text_grade, GRADE_PROFILES, get_reading_counts
 from mcp_tools import MCP_TOOLS, execute_mcp_tool
 
 load_dotenv()
@@ -227,6 +227,7 @@ async def generate_comprehension(req: ComprehensionRequest):
     def _build_prompt(extra_instructions: str = "") -> str:
         p = GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])
         word_range = p["passage_words"]
+        c = get_reading_counts(req.grade_level)
 
         low_grade_block = f"\n- Passage must be {word_range} words.\n"
 
@@ -243,7 +244,7 @@ Learning Objective: {req.learning_objective}
 CRITICAL RULES:
 1. Every word you write — passage, questions, instructions, hints — must match Grade {req.grade_level} level EXACTLY.
 2. The passage MUST be {word_range} words — count carefully.
-3. Questions must match the Bloom's level specified above. Do NOT write all literal questions.
+3. Generate EXACTLY {c['total_q']} text-dependent questions (calibrated for Grade {req.grade_level} attention) and EXACTLY {c['vocab']} vocabulary items. Do NOT write all literal questions.
 4. Vocabulary in Context words must come directly from the passage.
 5. Before You Read questions must activate prior knowledge at a Grade {req.grade_level} cognitive level.
 {extra_instructions}
@@ -273,20 +274,17 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
   }},
   "passage": {{
     "title": "Engaging title relevant to {req.topic}",
-    "text": "Write the FULL passage here. Must be {GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])['passage_words']} words. Use paragraph breaks (\\n\\n). Every sentence must match Grade {req.grade_level} syntax and vocabulary.",
-    "word_count": 300
+    "text": "Write the FULL passage here. Must be {word_range} words. Use paragraph breaks (\\n\\n). Every sentence must match Grade {req.grade_level} syntax and vocabulary.",
+    "word_count": "actual number of words in the passage you wrote"
   }},
   "text_dependent_questions": {{
     "title": "Text-Dependent Questions",
     "instructions": "Grade {req.grade_level}-appropriate instruction for answering with text evidence.",
     "questions": [
-      {{"number": 1, "question": "Literal question at Grade {req.grade_level} level", "type": "literal", "answer_hint": "Paragraph 1 evidence"}},
-      {{"number": 2, "question": "Literal question at Grade {req.grade_level} level", "type": "literal", "answer_hint": "Paragraph 2 evidence"}},
-      {{"number": 3, "question": "Literal question at Grade {req.grade_level} level", "type": "literal", "answer_hint": "Paragraph 2-3 evidence"}},
-      {{"number": 4, "question": "Inferential question at Grade {req.grade_level} Bloom's level", "type": "inferential", "answer_hint": "Infer from paragraphs 2-3"}},
-      {{"number": 5, "question": "Inferential question at Grade {req.grade_level} Bloom's level", "type": "inferential", "answer_hint": "Connect across paragraphs"}},
-      {{"number": 6, "question": "Higher-order question at Grade {req.grade_level} Bloom's level (Analyze/Evaluate)", "type": "critical_thinking", "answer_hint": "Use whole passage + reasoning"}},
-      {{"number": 7, "question": "Main idea question phrased at Grade {req.grade_level} level", "type": "main_idea", "answer_hint": "Synthesize all paragraphs"}}
+      {{"number": 1, "question": "Question at Grade {req.grade_level} level", "type": "literal", "answer_hint": "Paragraph evidence"}},
+      ... Generate EXACTLY {c['total_q']} questions total for Grade {req.grade_level}:
+          {c['literal']} literal (type "literal"), {c['inferential']} inferential (type "inferential"){', ' + str(c['higher']) + ' higher-order Analyze/Evaluate (type "critical_thinking")' if c['higher'] else ''}.
+          Number them 1..{c['total_q']}. Each needs an answer_hint pointing to passage evidence.
     ]
   }},
   "vocabulary_in_context": {{
@@ -300,7 +298,7 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
         "activity": "Grade {req.grade_level}-appropriate activity using this word",
         "answer": "Grade {req.grade_level}-appropriate answer"
       }},
-      ... 5 items total, each word from the passage
+      ... EXACTLY {c['vocab']} items total, each word from the passage
     ]
   }}
 }}"""

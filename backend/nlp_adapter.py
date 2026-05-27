@@ -194,6 +194,18 @@ def _count_syllables(word: str) -> int:
     return max(count, 1)
 
 
+def get_reading_counts(grade_level: int) -> dict:
+    """Grade-calibrated number of questions/vocab items so younger students
+    aren't overwhelmed. Passage length is handled separately via passage_words."""
+    if grade_level <= 2:
+        return {"total_q": 3, "literal": 2, "inferential": 1, "higher": 0, "vocab": 3, "before": 2}
+    if grade_level <= 5:
+        return {"total_q": 5, "literal": 2, "inferential": 2, "higher": 1, "vocab": 4, "before": 3}
+    if grade_level <= 8:
+        return {"total_q": 6, "literal": 2, "inferential": 2, "higher": 2, "vocab": 5, "before": 3}
+    return {"total_q": 7, "literal": 3, "inferential": 2, "higher": 2, "vocab": 5, "before": 3}
+
+
 def get_grade_prompt_context(grade_level: int) -> str:
     p = GRADE_PROFILES.get(grade_level, GRADE_PROFILES[7])
     return f"""=== GRADE {grade_level} NLP CALIBRATION REQUIREMENTS ===
