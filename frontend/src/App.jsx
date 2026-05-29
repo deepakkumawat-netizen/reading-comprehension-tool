@@ -2,6 +2,7 @@ import { useState } from 'react'
 import HomePage from './pages/HomePage'
 import FormPage from './pages/FormPage'
 import ResultPage from './pages/ResultPage'
+import Landing from './Landing'
 
 const API = import.meta.env.DEV ? '' : ''
 
@@ -20,7 +21,7 @@ const containsBlockedContent = (text = '') => {
 }
 
 export default function App() {
-  const [view, setView] = useState('home')
+  const [view, setView] = useState(() => localStorage.getItem('reading_seen_landing') ? 'home' : 'landing')
   const [sessionId, setSessionId] = useState(null)
   const [comprehension, setComprehension] = useState(null)
   const [formData, setFormData] = useState({})
@@ -105,6 +106,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen" style={{ background: '#FAF9F7', fontFamily: 'Inter, sans-serif' }}>
+      {view === 'landing' && (
+        <Landing onEnter={() => { localStorage.setItem('reading_seen_landing', '1'); setView('home') }} />
+      )}
       {view === 'home' && <HomePage onStart={() => setView('form')} />}
       {view === 'form' && (
         <FormPage
