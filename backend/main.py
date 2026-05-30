@@ -640,8 +640,15 @@ async def extract_youtube(req: dict):
     video_id = m.group(1)
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        chunks = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join(c.get("text", "") for c in chunks).strip()
+        # Support both library APIs:
+        #   v0.6.x: YouTubeTranscriptApi.get_transcript(video_id) -> [{"text": ...}]
+        #   v1.x:   YouTubeTranscriptApi().fetch(video_id) -> iterable of FetchedTranscriptSnippet
+        if hasattr(YouTubeTranscriptApi, "get_transcript"):
+            chunks = YouTubeTranscriptApi.get_transcript(video_id)
+            text = " ".join((c.get("text", "") if isinstance(c, dict) else getattr(c, "text", "")) for c in chunks).strip()
+        else:
+            transcript = YouTubeTranscriptApi().fetch(video_id)
+            text = " ".join(getattr(c, "text", "") or (c.get("text", "") if isinstance(c, dict) else "") for c in transcript).strip()
         if not text:
             raise HTTPException(status_code=422, detail="Transcript was empty.")
         return {"success": True, "video_id": video_id, "url": url, "text": text[:8000], "chars": len(text)}
