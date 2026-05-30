@@ -682,9 +682,51 @@ async def auto_fields(req: dict):
         raise HTTPException(status_code=500, detail=f"auto-fields failed: {e}")
 
 
+async def _youtube_metadata_fallback(video_id: str, url: str) -> dict | None:
+    """When the transcript API is IP-blocked, fall back to scraping the public
+    YouTube watch page for the video's title + description (og: meta tags
+    + the player-response JSON). These are served from any IP and give the
+    LLM enough source material to generate a grade-appropriate passage.
+    """
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; ReadingTool/1.0)",
+                     "Accept-Language": "en-US,en;q=0.9"}) as cx:
+            r = await cx.get(f"https://www.youtube.com/watch?v={video_id}")
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = ""
+            description = ""
+            ot = soup.find("meta", attrs={"property": "og:title"})
+            od = soup.find("meta", attrs={"property": "og:description"})
+            if ot: title = (ot.get("content") or "").strip()
+            if od: description = (od.get("content") or "").strip()
+            # YouTube hides the full description in window.ytInitialPlayerResponse
+            scripts = soup.find_all("script")
+            longer_desc = ""
+            for s in scripts:
+                txt = s.string or ""
+                if "shortDescription" in txt:
+                    mm = re.search(r'"shortDescription":"((?:\\.|[^"\\])*)"', txt)
+                    if mm:
+                        longer_desc = mm.group(1).encode("utf-8").decode("unicode_escape", errors="ignore")
+                        break
+            text = (title + "\n\n" + (longer_desc or description)).strip()
+            if len(text) < 60:
+                return None
+            return {"title": title, "text": text}
+    except Exception as _e:
+        print(f"[YouTube metadata fallback] failed: {_e}")
+        return None
+
+
 @app.post("/api/extract-youtube")
 async def extract_youtube(req: dict):
-    """Fetch a YouTube transcript and return it as source_text."""
+    """Fetch a YouTube transcript and return it as source_text. If YouTube
+    blocks the transcript API (typical on cloud IPs), fall back to scraping
+    the video's title + description so we still have usable source text."""
     url = (req.get("url") or "").strip()
     if not url:
         raise HTTPException(status_code=400, detail="url is required")
@@ -726,18 +768,35 @@ async def extract_youtube(req: dict):
         raise
     except Exception as e:
         msg = str(e)
-        # Detect YouTube's IP-block message and return a clearer code so the
-        # frontend can show the "paste transcript manually" fallback.
+        # Detect YouTube's IP-block.
         blocked = ("blocking requests" in msg.lower()
-                   or "ip" in msg.lower() and "block" in msg.lower()
+                   or ("ip" in msg.lower() and "block" in msg.lower())
                    or "could not retrieve a transcript" in msg.lower())
+
+        # If the transcript fetch failed, try the metadata fallback — title +
+        # description scraped from the public page (works from any IP). This
+        # gives us *something* the AI can use as source material instead of
+        # leaving the teacher stuck.
+        if blocked:
+            fallback = await _youtube_metadata_fallback(video_id, url)
+            if fallback:
+                return {
+                    "success": True,
+                    "video_id": video_id,
+                    "url": url,
+                    "text": fallback["text"][:8000],
+                    "chars": len(fallback["text"]),
+                    "title": fallback["title"],
+                    "note": "Transcript was blocked from our server's IP — using the video's title + description instead. For best results, paste the full transcript manually.",
+                }
+
         raise HTTPException(
             status_code=502 if blocked else 500,
             detail=(
-                "YouTube blocks transcript requests from our cloud server's IP. "
-                "Please open the video in your browser → click the ⋯ menu (or the "
-                "three-dot icon) below the video → 'Show transcript' → copy all the "
-                "text → paste it into the textarea below."
+                "YouTube blocks transcript requests from our cloud server's IP, and we "
+                "couldn't reach the video's public description either. Please open the "
+                "video in your browser → click the ⋯ menu (or 'Show transcript' in the "
+                "description) → copy the transcript → paste it into the textarea below."
                 if blocked else f"YouTube transcript fetch failed: {msg}"
             ),
         )

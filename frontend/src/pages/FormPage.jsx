@@ -204,8 +204,14 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       }
       const t = data.text || ''
       setSourceText(t)
-      setSourceLabel(`YouTube transcript (${data.chars} chars)`)
-      setFileStatus(`✓ Loaded YouTube transcript — ${data.chars} chars`)
+      const usedMetadata = !!data.note
+      setSourceLabel(usedMetadata
+        ? `YouTube (title + description, ${data.chars} chars)`
+        : `YouTube transcript (${data.chars} chars)`)
+      setFileStatus(usedMetadata
+        ? `✓ Loaded video title + description (${data.chars} chars). Transcript was IP-blocked; for better output paste it manually below.`
+        : `✓ Loaded YouTube transcript — ${data.chars} chars`)
+      if (usedMetadata) setYoutubeBlocked(true)  // keep the manual-paste textarea visible too
       autoFillFromSource(t)
     } catch (err) {
       setFileStatus(`Could not fetch YouTube transcript: ${err.message}`)
