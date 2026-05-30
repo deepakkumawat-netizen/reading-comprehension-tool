@@ -267,6 +267,7 @@ CRITICAL RULES:
 3. Generate EXACTLY {c['total_q']} text-dependent questions (calibrated for Grade {req.grade_level} attention) and EXACTLY {c['vocab']} vocabulary items. Do NOT write all literal questions.
 4. Vocabulary in Context words must come directly from the passage.
 5. Before You Read questions must activate prior knowledge at a Grade {req.grade_level} cognitive level.
+{"6. SOURCE MATERIAL is provided above and is the AUTHORITATIVE basis for this passage. The passage MUST be a grade-level rewrite/summary of the SOURCE MATERIAL — every fact, name, number, date, event, term and example must come directly from it. Do NOT invent content from your own knowledge if it contradicts or is absent from the source. Text-dependent questions must reference the rewritten passage (which reflects the source); Vocabulary in Context words must be picked from words actually present in the source." if req.source_text else ""}
 {extra_instructions}
 
 Return ONLY valid JSON. No markdown fences. No prose outside the JSON.

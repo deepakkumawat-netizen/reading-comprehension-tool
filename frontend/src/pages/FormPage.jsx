@@ -489,13 +489,30 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       {/* Sticky bottom */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-4">
         <div className="max-w-2xl mx-auto">
+          {/* Source-loaded indicator: visible right above Generate so teacher knows the uploaded doc / URL will be used */}
+          {sourceLabel && !fileStatus.startsWith('Uploading') && !fileStatus.startsWith('Fetching') && (
+            <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200">
+              <span className="text-green-600 text-sm font-bold">✓</span>
+              <span className="text-xs text-green-800 font-semibold">Source loaded:</span>
+              <span className="text-xs text-green-700 truncate flex-1">{sourceLabel}</span>
+              <button type="button" onClick={() => { setSourceText(''); setSourceLabel(''); setFileStatus(''); }}
+                className="text-xs text-green-700 hover:text-green-900 font-bold px-2">✕</button>
+            </div>
+          )}
+          {(fileStatus.startsWith('Uploading') || fileStatus.startsWith('Fetching')) && (
+            <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 border border-orange-200">
+              <div className="spinner" style={{ width: 12, height: 12, borderColor: '#E85D04', borderTopColor: 'transparent' }} />
+              <span className="text-xs text-orange-700 font-semibold">{fileStatus} — please wait before generating.</span>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 hover:bg-gray-50">
               ✦ Fast <span className="text-gray-300">∨</span>
             </button>
             <button
               onClick={handleGenerate}
-              disabled={loading || (!objective.trim() && !topic.trim()) || !grade}
+              disabled={loading || (!objective.trim() && !topic.trim()) || !grade
+                || fileStatus.startsWith('Uploading') || fileStatus.startsWith('Fetching')}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
               style={{ background: '#E85D04' }}
             >
@@ -504,8 +521,10 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                   <div className="spinner" />
                   Generating...
                 </>
+              ) : fileStatus.startsWith('Uploading') || fileStatus.startsWith('Fetching') ? (
+                <>Waiting for source… </>
               ) : (
-                <>Generate →</>
+                <>Generate {sourceLabel ? 'from source ' : ''}→</>
               )}
             </button>
           </div>
