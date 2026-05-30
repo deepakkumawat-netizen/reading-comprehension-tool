@@ -64,12 +64,6 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [fileStatus, setFileStatus] = useState('')
   const [sourceText, setSourceText] = useState('')   // extracted from file / URL / YouTube
   const [sourceLabel, setSourceLabel] = useState('') // human-readable label of the source
-  // Track whether each field has been TYPED INTO by the teacher in this
-  // session. Defaults false (incl. when the form is prefilled via Adapt or
-  // by autoFillFromSource), so loading a new source can refresh those values.
-  // Once the teacher types, the field is locked from auto-refresh.
-  const [topicTouched, setTopicTouched] = useState(false)
-  const [objectiveTouched, setObjectiveTouched] = useState(false)
   const [blockedMsg, setBlockedMsg] = useState(null)
   const [listeningFor, setListeningFor] = useState(null)
   const dismissTimer = useRef(null)
@@ -100,6 +94,20 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [youtubeUrl])
+
+  // Debounced auto-fill from the Standards textarea so curriculum standards
+  // also generate a fitting Topic + Learning Objective.
+  useEffect(() => {
+    if (!standardsText.trim() || standardsText.trim().length < 30) return
+    const t = setTimeout(() => {
+      setSourceText(standardsText.trim())
+      setSourceLabel(`Curriculum standards (${standardsText.trim().length} chars)`)
+      setFileStatus(`✓ Using curriculum standards as the source.`)
+      autoFillFromSource(standardsText.trim())
+    }, 1000)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [standardsText])
 
   const startVoice = (field) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -237,9 +245,9 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   }
 
   // Ask the AI to suggest a Topic + Learning Objective from the loaded
-  // source material so the teacher doesn't have to type anything.
-  // Overwrites whatever was in the fields UNLESS the teacher has typed
-  // into them this session (topicTouched / objectiveTouched).
+  // source material. ALWAYS overwrites — the teacher can edit afterwards.
+  // This way switching source (URL → File → Standards → YouTube) always
+  // refreshes the form to match the latest content.
   const autoFillFromSource = async (text) => {
     if (!text || text.trim().length < 30) return
     try {
@@ -249,9 +257,9 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       })
       const data = await res.json()
       if (!res.ok || !data.success) return
-      if (data.topic && !topicTouched) setTopic(data.topic)
-      if (data.learning_objective && !objectiveTouched) setObjective(data.learning_objective)
-    } catch (_) { /* silent — teacher can still type manually */ }
+      if (data.topic) setTopic(data.topic)
+      if (data.learning_objective) setObjective(data.learning_objective)
+    } catch (_) { /* silent */ }
   }
 
   const handleGenerate = () => {
@@ -305,8 +313,6 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
     setYoutubeUrl('')
     setStandardsText('')
     setAdditionalContext('')
-    setTopicTouched(false)
-    setObjectiveTouched(false)
   }
 
   return (
@@ -365,7 +371,7 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                 <input
                   type="text"
                   value={objective}
-                  onChange={e => { setObjective(e.target.value); setObjectiveTouched(true) }}
+                  onChange={e => setObjective(e.target.value)}
                   placeholder="Students will explore information to describe climates in different regions of the world."
                   className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': '#E85D04' }}
@@ -382,7 +388,7 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
               <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2" style={{ '--tw-ring-color': '#E85D04' }}>
                 <textarea
                   value={topic}
-                  onChange={e => { setTopic(e.target.value.slice(0, 2000)); setTopicTouched(true) }}
+                  onChange={e => setTopic(e.target.value.slice(0, 2000))}
                   placeholder="Example: Climates in different regions of the world (e.g., equatorial, polar, coastal, mid-continental)."
                   rows={4}
                   className="w-full px-3 pt-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none resize-none"
@@ -421,7 +427,6 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                       setObjective(''); setTopic(''); setActiveTab(null); setAdditionalContext('')
                       setSourceText(''); setSourceLabel(''); setFileStatus('')
                       setWebsiteUrl(''); setYoutubeUrl(''); setStandardsText('')
-                      setTopicTouched(false); setObjectiveTouched(false)
                     }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50"
                   >
