@@ -64,10 +64,12 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [fileStatus, setFileStatus] = useState('')
   const [sourceText, setSourceText] = useState('')   // extracted from file / URL / YouTube
   const [sourceLabel, setSourceLabel] = useState('') // human-readable label of the source
-  // Track whether topic / objective were filled by the AI (so loading a new
-  // source can refresh them) vs. typed by the teacher (which we never overwrite).
-  const [topicAutoFilled, setTopicAutoFilled] = useState(false)
-  const [objectiveAutoFilled, setObjectiveAutoFilled] = useState(false)
+  // Track whether each field has been TYPED INTO by the teacher in this
+  // session. Defaults false (incl. when the form is prefilled via Adapt or
+  // by autoFillFromSource), so loading a new source can refresh those values.
+  // Once the teacher types, the field is locked from auto-refresh.
+  const [topicTouched, setTopicTouched] = useState(false)
+  const [objectiveTouched, setObjectiveTouched] = useState(false)
   const [blockedMsg, setBlockedMsg] = useState(null)
   const [listeningFor, setListeningFor] = useState(null)
   const dismissTimer = useRef(null)
@@ -236,13 +238,10 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
 
   // Ask the AI to suggest a Topic + Learning Objective from the loaded
   // source material so the teacher doesn't have to type anything.
-  // Refreshes auto-filled values when a new source is loaded, but never
-  // overwrites text the teacher typed in manually.
+  // Overwrites whatever was in the fields UNLESS the teacher has typed
+  // into them this session (topicTouched / objectiveTouched).
   const autoFillFromSource = async (text) => {
     if (!text || text.trim().length < 30) return
-    // Clear previous auto-filled values so the AI can repopulate from the new source.
-    if (topicAutoFilled) setTopic('')
-    if (objectiveAutoFilled) setObjective('')
     try {
       const res = await fetch('/api/auto-fields', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -250,15 +249,8 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       })
       const data = await res.json()
       if (!res.ok || !data.success) return
-      // Only write when the field is empty (newly cleared above OR untouched by teacher).
-      if (data.topic && (!topic.trim() || topicAutoFilled)) {
-        setTopic(data.topic)
-        setTopicAutoFilled(true)
-      }
-      if (data.learning_objective && (!objective.trim() || objectiveAutoFilled)) {
-        setObjective(data.learning_objective)
-        setObjectiveAutoFilled(true)
-      }
+      if (data.topic && !topicTouched) setTopic(data.topic)
+      if (data.learning_objective && !objectiveTouched) setObjective(data.learning_objective)
     } catch (_) { /* silent — teacher can still type manually */ }
   }
 
@@ -357,7 +349,7 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                 <input
                   type="text"
                   value={objective}
-                  onChange={e => { setObjective(e.target.value); setObjectiveAutoFilled(false) }}
+                  onChange={e => { setObjective(e.target.value); setObjectiveTouched(true) }}
                   placeholder="Students will explore information to describe climates in different regions of the world."
                   className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': '#E85D04' }}
@@ -374,7 +366,7 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
               <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2" style={{ '--tw-ring-color': '#E85D04' }}>
                 <textarea
                   value={topic}
-                  onChange={e => { setTopic(e.target.value.slice(0, 2000)); setTopicAutoFilled(false) }}
+                  onChange={e => { setTopic(e.target.value.slice(0, 2000)); setTopicTouched(true) }}
                   placeholder="Example: Climates in different regions of the world (e.g., equatorial, polar, coastal, mid-continental)."
                   rows={4}
                   className="w-full px-3 pt-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none resize-none"
@@ -413,7 +405,7 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                       setObjective(''); setTopic(''); setActiveTab(null); setAdditionalContext('')
                       setSourceText(''); setSourceLabel(''); setFileStatus('')
                       setWebsiteUrl(''); setYoutubeUrl(''); setStandardsText('')
-                      setTopicAutoFilled(false); setObjectiveAutoFilled(false)
+                      setTopicTouched(false); setObjectiveTouched(false)
                     }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50"
                   >
