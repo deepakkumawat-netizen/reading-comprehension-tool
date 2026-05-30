@@ -64,8 +64,10 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [fileStatus, setFileStatus] = useState('')
   const [sourceText, setSourceText] = useState('')   // extracted from file / URL / YouTube
   const [sourceLabel, setSourceLabel] = useState('') // human-readable label of the source
-  const [youtubeBlocked, setYoutubeBlocked] = useState(false) // shows the manual-paste fallback
-  const [manualTranscript, setManualTranscript] = useState('')
+  // Track whether topic / objective were filled by the AI (so loading a new
+  // source can refresh them) vs. typed by the teacher (which we never overwrite).
+  const [topicAutoFilled, setTopicAutoFilled] = useState(false)
+  const [objectiveAutoFilled, setObjectiveAutoFilled] = useState(false)
   const [blockedMsg, setBlockedMsg] = useState(null)
   const [listeningFor, setListeningFor] = useState(null)
   const dismissTimer = useRef(null)
@@ -77,6 +79,25 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       recognitionRef.current?.stop()
     }
   }, [])
+
+  // Debounced auto-fetch when a URL is typed/pasted — no Fetch button needed.
+  useEffect(() => {
+    if (!websiteUrl.trim()) return
+    if (!/^https?:\/\/\S+\.\S+/.test(websiteUrl.trim())) return
+    const t = setTimeout(() => handleFetchUrl(websiteUrl.trim()), 800)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [websiteUrl])
+
+  // Debounced auto-fetch for YouTube — fires as soon as the URL contains a
+  // recognizable video id.
+  useEffect(() => {
+    if (!youtubeUrl.trim()) return
+    if (!/(?:v=|youtu\.be\/|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/.test(youtubeUrl.trim())) return
+    const t = setTimeout(() => handleFetchYoutube(youtubeUrl.trim()), 800)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [youtubeUrl])
 
   const startVoice = (field) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -189,19 +210,15 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   }
 
   const handleFetchYoutube = async (url) => {
-    if (!url) { setSourceText(''); setSourceLabel(''); setYoutubeBlocked(false); return }
-    setFileStatus(`Fetching YouTube transcript…`)
-    setYoutubeBlocked(false)
+    if (!url) { setSourceText(''); setSourceLabel(''); return }
+    setFileStatus(`Fetching YouTube content…`)
     try {
       const res = await fetch('/api/extract-youtube', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       })
       const data = await res.json()
-      if (!res.ok || !data.success) {
-        if (res.status === 502) setYoutubeBlocked(true)  // YouTube IP-blocked our server
-        throw new Error(data.detail || 'fetch failed')
-      }
+      if (!res.ok || !data.success) throw new Error(data.detail || 'fetch failed')
       const t = data.text || ''
       setSourceText(t)
       const usedMetadata = !!data.note
@@ -209,31 +226,23 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
         ? `YouTube (title + description, ${data.chars} chars)`
         : `YouTube transcript (${data.chars} chars)`)
       setFileStatus(usedMetadata
-        ? `✓ Loaded video title + description (${data.chars} chars). Transcript was IP-blocked; for better output paste it manually below.`
+        ? `✓ Loaded video title + description (${data.chars} chars).`
         : `✓ Loaded YouTube transcript — ${data.chars} chars`)
-      if (usedMetadata) setYoutubeBlocked(true)  // keep the manual-paste textarea visible too
       autoFillFromSource(t)
     } catch (err) {
-      setFileStatus(`Could not fetch YouTube transcript: ${err.message}`)
+      setFileStatus(`Could not fetch YouTube: ${err.message}`)
     }
-  }
-
-  const applyManualTranscript = () => {
-    const t = manualTranscript.trim()
-    if (!t) return
-    setSourceText(t)
-    setSourceLabel(`YouTube transcript (pasted, ${t.length} chars)`)
-    setFileStatus(`✓ Loaded pasted transcript — ${t.length} chars`)
-    setYoutubeBlocked(false)
-    autoFillFromSource(t)
   }
 
   // Ask the AI to suggest a Topic + Learning Objective from the loaded
   // source material so the teacher doesn't have to type anything.
-  // Only fills empty fields — never overwrites what the teacher already typed.
+  // Refreshes auto-filled values when a new source is loaded, but never
+  // overwrites text the teacher typed in manually.
   const autoFillFromSource = async (text) => {
-    if (!text || text.trim().length < 50) return
-    if (objective.trim() && topic.trim()) return
+    if (!text || text.trim().length < 30) return
+    // Clear previous auto-filled values so the AI can repopulate from the new source.
+    if (topicAutoFilled) setTopic('')
+    if (objectiveAutoFilled) setObjective('')
     try {
       const res = await fetch('/api/auto-fields', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -241,8 +250,15 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       })
       const data = await res.json()
       if (!res.ok || !data.success) return
-      if (!topic.trim() && data.topic) setTopic(data.topic)
-      if (!objective.trim() && data.learning_objective) setObjective(data.learning_objective)
+      // Only write when the field is empty (newly cleared above OR untouched by teacher).
+      if (data.topic && (!topic.trim() || topicAutoFilled)) {
+        setTopic(data.topic)
+        setTopicAutoFilled(true)
+      }
+      if (data.learning_objective && (!objective.trim() || objectiveAutoFilled)) {
+        setObjective(data.learning_objective)
+        setObjectiveAutoFilled(true)
+      }
     } catch (_) { /* silent — teacher can still type manually */ }
   }
 
@@ -341,7 +357,7 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                 <input
                   type="text"
                   value={objective}
-                  onChange={e => setObjective(e.target.value)}
+                  onChange={e => { setObjective(e.target.value); setObjectiveAutoFilled(false) }}
                   placeholder="Students will explore information to describe climates in different regions of the world."
                   className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': '#E85D04' }}
@@ -358,7 +374,7 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
               <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2" style={{ '--tw-ring-color': '#E85D04' }}>
                 <textarea
                   value={topic}
-                  onChange={e => setTopic(e.target.value.slice(0, 2000))}
+                  onChange={e => { setTopic(e.target.value.slice(0, 2000)); setTopicAutoFilled(false) }}
                   placeholder="Example: Climates in different regions of the world (e.g., equatorial, polar, coastal, mid-continental)."
                   rows={4}
                   className="w-full px-3 pt-2.5 text-sm text-gray-700 placeholder-gray-300 focus:outline-none resize-none"
@@ -393,7 +409,12 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
               <div className="ml-auto flex items-center gap-2">
                 {hasContent ? (
                   <button
-                    onClick={() => { setObjective(''); setTopic(''); setActiveTab(null); setAdditionalContext('') }}
+                    onClick={() => {
+                      setObjective(''); setTopic(''); setActiveTab(null); setAdditionalContext('')
+                      setSourceText(''); setSourceLabel(''); setFileStatus('')
+                      setWebsiteUrl(''); setYoutubeUrl(''); setStandardsText('')
+                      setTopicAutoFilled(false); setObjectiveAutoFilled(false)
+                    }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50"
                   >
                     Clear All
@@ -437,26 +458,18 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
 
             {activeTab === 'Website' && (
               <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">Add a website URL — we'll fetch the article text and use it as the source for the passage.</p>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={websiteUrl}
-                    onChange={e => {
-                      setWebsiteUrl(e.target.value)
-                      setAdditionalContext(e.target.value ? `Website reference: ${e.target.value}` : '')
-                    }}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleFetchUrl(websiteUrl) } }}
-                    placeholder="https://example.com/article"
-                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
-                    style={{ '--tw-ring-color': '#E85D04' }}
-                  />
-                  <button type="button" onClick={() => handleFetchUrl(websiteUrl)} disabled={!websiteUrl}
-                    className="px-3 py-1.5 text-xs font-semibold text-white rounded disabled:opacity-50"
-                    style={{ background: '#E85D04' }}>
-                    Fetch
-                  </button>
-                </div>
+                <p className="text-xs text-gray-500 mb-2">Paste a website URL — we'll fetch the article automatically and use it as the source.</p>
+                <input
+                  type="url"
+                  value={websiteUrl}
+                  onChange={e => {
+                    setWebsiteUrl(e.target.value)
+                    setAdditionalContext(e.target.value ? `Website reference: ${e.target.value}` : '')
+                  }}
+                  placeholder="https://example.com/article"
+                  className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
+                  style={{ '--tw-ring-color': '#E85D04' }}
+                />
                 {fileStatus && <p className="text-xs text-gray-500 mt-2">{fileStatus}</p>}
                 {sourceLabel && <p className="text-xs text-green-600 mt-1 font-semibold">✓ {sourceLabel} — will be used as the source.</p>}
               </div>
@@ -464,58 +477,20 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
 
             {activeTab === 'YouTube' && (
               <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">Add a YouTube video URL — we'll grab the transcript and use it as the source.</p>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={youtubeUrl}
-                    onChange={e => {
-                      setYoutubeUrl(e.target.value)
-                      setAdditionalContext(e.target.value ? `YouTube reference: ${e.target.value}` : '')
-                    }}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleFetchYoutube(youtubeUrl) } }}
-                    placeholder="https://youtube.com/watch?v=..."
-                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
-                    style={{ '--tw-ring-color': '#E85D04' }}
-                  />
-                  <button type="button" onClick={() => handleFetchYoutube(youtubeUrl)} disabled={!youtubeUrl}
-                    className="px-3 py-1.5 text-xs font-semibold text-white rounded disabled:opacity-50"
-                    style={{ background: '#E85D04' }}>
-                    Fetch
-                  </button>
-                </div>
-                {fileStatus && !youtubeBlocked && <p className="text-xs text-gray-500 mt-2">{fileStatus}</p>}
+                <p className="text-xs text-gray-500 mb-2">Paste a YouTube video URL — we'll fetch the transcript (or title + description) automatically.</p>
+                <input
+                  type="url"
+                  value={youtubeUrl}
+                  onChange={e => {
+                    setYoutubeUrl(e.target.value)
+                    setAdditionalContext(e.target.value ? `YouTube reference: ${e.target.value}` : '')
+                  }}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
+                  style={{ '--tw-ring-color': '#E85D04' }}
+                />
+                {fileStatus && <p className="text-xs text-gray-500 mt-2">{fileStatus}</p>}
                 {sourceLabel && <p className="text-xs text-green-600 mt-1 font-semibold">✓ {sourceLabel} — will be used as the source.</p>}
-
-                {/* IP-block fallback — manual transcript paste */}
-                {youtubeBlocked && (
-                  <div className="mt-3 p-3 rounded-lg border border-amber-300 bg-amber-50">
-                    <p className="text-xs text-amber-900 font-semibold mb-1">⚠ YouTube blocked our server's IP.</p>
-                    <p className="text-xs text-amber-800 mb-2">
-                      Open the video → click the <strong>⋯ More</strong> button (or "Show transcript" in the description) →
-                      copy all the transcript text → paste it below. We'll use it just like a fetched transcript.
-                    </p>
-                    <textarea
-                      value={manualTranscript}
-                      onChange={e => setManualTranscript(e.target.value)}
-                      placeholder="Paste the YouTube transcript here…"
-                      rows={5}
-                      className="w-full border border-amber-300 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1 resize-y"
-                      style={{ '--tw-ring-color': '#E85D04', background: '#fff' }}
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <button type="button" onClick={applyManualTranscript} disabled={!manualTranscript.trim()}
-                        className="px-3 py-1.5 text-xs font-semibold text-white rounded disabled:opacity-50"
-                        style={{ background: '#E85D04' }}>
-                        Use pasted transcript
-                      </button>
-                      <button type="button" onClick={() => { setManualTranscript(''); setYoutubeBlocked(false); setFileStatus('') }}
-                        className="px-3 py-1.5 text-xs font-semibold text-amber-700 border border-amber-300 rounded">
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
