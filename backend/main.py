@@ -628,6 +628,60 @@ async def extract_url(req: dict):
         raise HTTPException(status_code=500, detail=f"URL fetch failed: {e}")
 
 
+@app.post("/api/auto-fields")
+async def auto_fields(req: dict):
+    """Read uploaded text and propose a Topic + Learning Objective + grade.
+
+    Saves the teacher from typing — they upload a PDF / URL / YouTube
+    transcript and we suggest what to put in the Topic and Learning
+    Objective fields, calibrated for the grade if they've picked one.
+    """
+    source_text = (req.get("source_text") or "").strip()
+    if not source_text:
+        raise HTTPException(status_code=400, detail="source_text is required.")
+    grade = req.get("grade_level")
+    grade_hint = f"Calibrate the topic + objective for Grade {grade} students. " if grade else ""
+
+    prompt = (
+        "You are an expert reading-comprehension curriculum designer.\n"
+        "Read the SOURCE MATERIAL below and propose a clean, classroom-ready\n"
+        "  • Topic (a short noun phrase, 4-10 words, naming the main idea)\n"
+        "  • Learning Objective (one sentence starting with 'Students will…' "
+        "describing what the student will be able to do after reading).\n"
+        f"{grade_hint}"
+        "Return ONLY a JSON object with keys 'topic' and 'learning_objective'. "
+        "No markdown, no prose outside the JSON.\n\n"
+        "SOURCE MATERIAL:\n---\n"
+        f"{source_text[:6000]}\n---\n\n"
+        'JSON: {"topic": "...", "learning_objective": "Students will ..."}'
+    )
+
+    try:
+        client = get_groq_client()
+        completion = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": "You return strict JSON. No markdown fences."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=400,
+            response_format={"type": "json_object"},
+        )
+        import json as _json
+        raw = completion.choices[0].message.content.strip()
+        data = _json.loads(raw)
+        topic = (data.get("topic") or "").strip()
+        objective = (data.get("learning_objective") or "").strip()
+        if not topic and not objective:
+            raise HTTPException(status_code=502, detail="Model returned no fields.")
+        return {"success": True, "topic": topic, "learning_objective": objective}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"auto-fields failed: {e}")
+
+
 @app.post("/api/extract-youtube")
 async def extract_youtube(req: dict):
     """Fetch a YouTube transcript and return it as source_text."""
