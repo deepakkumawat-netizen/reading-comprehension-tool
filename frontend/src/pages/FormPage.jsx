@@ -64,6 +64,8 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [fileStatus, setFileStatus] = useState('')
   const [sourceText, setSourceText] = useState('')   // extracted from file / URL / YouTube
   const [sourceLabel, setSourceLabel] = useState('') // human-readable label of the source
+  const [youtubeBlocked, setYoutubeBlocked] = useState(false) // shows the manual-paste fallback
+  const [manualTranscript, setManualTranscript] = useState('')
   const [blockedMsg, setBlockedMsg] = useState(null)
   const [listeningFor, setListeningFor] = useState(null)
   const dismissTimer = useRef(null)
@@ -184,21 +186,34 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   }
 
   const handleFetchYoutube = async (url) => {
-    if (!url) { setSourceText(''); setSourceLabel(''); return }
+    if (!url) { setSourceText(''); setSourceLabel(''); setYoutubeBlocked(false); return }
     setFileStatus(`Fetching YouTube transcript…`)
+    setYoutubeBlocked(false)
     try {
       const res = await fetch('/api/extract-youtube', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       })
       const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.detail || 'fetch failed')
+      if (!res.ok || !data.success) {
+        if (res.status === 502) setYoutubeBlocked(true)  // YouTube IP-blocked our server
+        throw new Error(data.detail || 'fetch failed')
+      }
       setSourceText(data.text || '')
       setSourceLabel(`YouTube transcript (${data.chars} chars)`)
       setFileStatus(`✓ Loaded YouTube transcript — ${data.chars} chars`)
     } catch (err) {
       setFileStatus(`Could not fetch YouTube transcript: ${err.message}`)
     }
+  }
+
+  const applyManualTranscript = () => {
+    const t = manualTranscript.trim()
+    if (!t) return
+    setSourceText(t)
+    setSourceLabel(`YouTube transcript (pasted, ${t.length} chars)`)
+    setFileStatus(`✓ Loaded pasted transcript — ${t.length} chars`)
+    setYoutubeBlocked(false)
   }
 
   const handleGenerate = () => {
@@ -439,8 +454,38 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
                     Fetch
                   </button>
                 </div>
-                {fileStatus && <p className="text-xs text-gray-500 mt-2">{fileStatus}</p>}
+                {fileStatus && !youtubeBlocked && <p className="text-xs text-gray-500 mt-2">{fileStatus}</p>}
                 {sourceLabel && <p className="text-xs text-green-600 mt-1 font-semibold">✓ {sourceLabel} — will be used as the source.</p>}
+
+                {/* IP-block fallback — manual transcript paste */}
+                {youtubeBlocked && (
+                  <div className="mt-3 p-3 rounded-lg border border-amber-300 bg-amber-50">
+                    <p className="text-xs text-amber-900 font-semibold mb-1">⚠ YouTube blocked our server's IP.</p>
+                    <p className="text-xs text-amber-800 mb-2">
+                      Open the video → click the <strong>⋯ More</strong> button (or "Show transcript" in the description) →
+                      copy all the transcript text → paste it below. We'll use it just like a fetched transcript.
+                    </p>
+                    <textarea
+                      value={manualTranscript}
+                      onChange={e => setManualTranscript(e.target.value)}
+                      placeholder="Paste the YouTube transcript here…"
+                      rows={5}
+                      className="w-full border border-amber-300 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1 resize-y"
+                      style={{ '--tw-ring-color': '#E85D04', background: '#fff' }}
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button type="button" onClick={applyManualTranscript} disabled={!manualTranscript.trim()}
+                        className="px-3 py-1.5 text-xs font-semibold text-white rounded disabled:opacity-50"
+                        style={{ background: '#E85D04' }}>
+                        Use pasted transcript
+                      </button>
+                      <button type="button" onClick={() => { setManualTranscript(''); setYoutubeBlocked(false); setFileStatus('') }}
+                        className="px-3 py-1.5 text-xs font-semibold text-amber-700 border border-amber-300 rounded">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

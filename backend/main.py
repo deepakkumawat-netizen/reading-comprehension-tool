@@ -640,10 +640,26 @@ async def extract_youtube(req: dict):
     video_id = m.group(1)
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
+        # Optional Webshare proxy — YouTube blocks Render's datacenter IPs by
+        # default. Set WEBSHARE_PROXY_USERNAME + WEBSHARE_PROXY_PASSWORD env vars
+        # to route through Webshare's residential proxies (paid).
+        proxy_config = None
+        wh_user = os.getenv("WEBSHARE_PROXY_USERNAME")
+        wh_pass = os.getenv("WEBSHARE_PROXY_PASSWORD")
+        if wh_user and wh_pass:
+            try:
+                from youtube_transcript_api.proxies import WebshareProxyConfig
+                proxy_config = WebshareProxyConfig(proxy_username=wh_user, proxy_password=wh_pass)
+            except Exception as _e:
+                print(f"[YouTube] Webshare proxy import failed: {_e}")
+
         # Support both library APIs:
         #   v0.6.x: YouTubeTranscriptApi.get_transcript(video_id) -> [{"text": ...}]
         #   v1.x:   YouTubeTranscriptApi().fetch(video_id) -> iterable of FetchedTranscriptSnippet
-        if hasattr(YouTubeTranscriptApi, "get_transcript"):
+        if proxy_config is not None:
+            transcript = YouTubeTranscriptApi(proxy_config=proxy_config).fetch(video_id)
+            text = " ".join(getattr(c, "text", "") or (c.get("text", "") if isinstance(c, dict) else "") for c in transcript).strip()
+        elif hasattr(YouTubeTranscriptApi, "get_transcript"):
             chunks = YouTubeTranscriptApi.get_transcript(video_id)
             text = " ".join((c.get("text", "") if isinstance(c, dict) else getattr(c, "text", "")) for c in chunks).strip()
         else:
@@ -655,7 +671,22 @@ async def extract_youtube(req: dict):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"YouTube transcript fetch failed: {e}")
+        msg = str(e)
+        # Detect YouTube's IP-block message and return a clearer code so the
+        # frontend can show the "paste transcript manually" fallback.
+        blocked = ("blocking requests" in msg.lower()
+                   or "ip" in msg.lower() and "block" in msg.lower()
+                   or "could not retrieve a transcript" in msg.lower())
+        raise HTTPException(
+            status_code=502 if blocked else 500,
+            detail=(
+                "YouTube blocks transcript requests from our cloud server's IP. "
+                "Please open the video in your browser → click the ⋯ menu (or the "
+                "three-dot icon) below the video → 'Show transcript' → copy all the "
+                "text → paste it into the textarea below."
+                if blocked else f"YouTube transcript fetch failed: {msg}"
+            ),
+        )
 
 
 # ── MCP Tools ─────────────────────────────────────────────────────────────────
