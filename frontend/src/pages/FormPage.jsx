@@ -291,7 +291,23 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
     setObjective(enhanced)
   }
 
-  const toggleTab = (tab) => setActiveTab(activeTab === tab ? null : tab)
+  // Switching to a different source tab resets the previous source so the
+  // teacher's intent is unambiguous — the new tab is the new source. We
+  // also reset the touched flags so the AI can refresh Topic + Objective
+  // when the new source loads. Clicking the same tab again just closes it.
+  const toggleTab = (tab) => {
+    if (activeTab === tab) { setActiveTab(null); return }
+    setActiveTab(tab)
+    setSourceText('')
+    setSourceLabel('')
+    setFileStatus('')
+    setWebsiteUrl('')
+    setYoutubeUrl('')
+    setStandardsText('')
+    setAdditionalContext('')
+    setTopicTouched(false)
+    setObjectiveTouched(false)
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#FAF9F7' }}>
