@@ -62,6 +62,8 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [standardsText, setStandardsText] = useState('')
   const [fileStatus, setFileStatus] = useState('')
+  const [sourceText, setSourceText] = useState('')   // extracted from file / URL / YouTube
+  const [sourceLabel, setSourceLabel] = useState('') // human-readable label of the source
   const [blockedMsg, setBlockedMsg] = useState(null)
   const [listeningFor, setListeningFor] = useState(null)
   const dismissTimer = useRef(null)
@@ -150,16 +152,61 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
     try {
       const res = await fetch('/api/rag/add-file', { method: 'POST', body: fd })
       const data = await res.json()
-      setFileStatus(`✓ ${file.name} added (${data.chars_indexed} chars indexed)`)
+      if (!res.ok || !data.success) throw new Error(data.detail || 'upload failed')
+      const text = data.text || ''
+      setSourceText(text)
+      setSourceLabel(`File: ${file.name} (${data.chars_indexed} chars)`)
       setAdditionalContext(`Reference file: ${file.name}`)
+      setFileStatus(text
+        ? `✓ ${file.name} — ${data.chars_indexed} chars loaded as source material`
+        : `✓ ${file.name} added`)
     } catch (err) {
       setFileStatus(`Upload failed: ${err.message}`)
     }
   }
 
+  const handleFetchUrl = async (url) => {
+    if (!url) { setSourceText(''); setSourceLabel(''); return }
+    setFileStatus(`Fetching ${url}…`)
+    try {
+      const res = await fetch('/api/extract-url', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.detail || 'fetch failed')
+      setSourceText(data.text || '')
+      setSourceLabel(`Website: ${data.title || url} (${data.chars} chars)`)
+      setFileStatus(`✓ Loaded ${data.chars} chars from ${data.title || url}`)
+    } catch (err) {
+      setFileStatus(`Could not fetch URL: ${err.message}`)
+    }
+  }
+
+  const handleFetchYoutube = async (url) => {
+    if (!url) { setSourceText(''); setSourceLabel(''); return }
+    setFileStatus(`Fetching YouTube transcript…`)
+    try {
+      const res = await fetch('/api/extract-youtube', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.detail || 'fetch failed')
+      setSourceText(data.text || '')
+      setSourceLabel(`YouTube transcript (${data.chars} chars)`)
+      setFileStatus(`✓ Loaded YouTube transcript — ${data.chars} chars`)
+    } catch (err) {
+      setFileStatus(`Could not fetch YouTube transcript: ${err.message}`)
+    }
+  }
+
   const handleGenerate = () => {
     if (!objective.trim() && !topic.trim()) return
-    const flagged = checkContent(`${objective} ${topic} ${additionalContext}`)
+    // Only validate the free-text fields the teacher types. URLs in the
+    // dedicated Web / YouTube tabs are legitimate inputs and must not trip
+    // the "URLs or links" guard.
+    const flagged = checkContent(`${objective} ${topic}`)
     if (flagged) {
       showBlocked(flagged)
       return
@@ -173,6 +220,7 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       topic: topic.trim(),
       grade_level: gradeNum,
       learning_objective: objective.trim(),
+      source_text: sourceText || undefined,
       additional_context: additionalContext || undefined,
     })
   }
@@ -344,35 +392,55 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
 
             {activeTab === 'Website' && (
               <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">Add a website URL — the AI will use it as additional context when generating the passage.</p>
-                <input
-                  type="url"
-                  value={websiteUrl}
-                  onChange={e => {
-                    setWebsiteUrl(e.target.value)
-                    setAdditionalContext(e.target.value ? `Website reference: ${e.target.value}` : '')
-                  }}
-                  placeholder="https://example.com/article"
-                  className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
-                  style={{ '--tw-ring-color': '#E85D04' }}
-                />
+                <p className="text-xs text-gray-500 mb-2">Add a website URL — we'll fetch the article text and use it as the source for the passage.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={websiteUrl}
+                    onChange={e => {
+                      setWebsiteUrl(e.target.value)
+                      setAdditionalContext(e.target.value ? `Website reference: ${e.target.value}` : '')
+                    }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleFetchUrl(websiteUrl) } }}
+                    placeholder="https://example.com/article"
+                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
+                    style={{ '--tw-ring-color': '#E85D04' }}
+                  />
+                  <button type="button" onClick={() => handleFetchUrl(websiteUrl)} disabled={!websiteUrl}
+                    className="px-3 py-1.5 text-xs font-semibold text-white rounded disabled:opacity-50"
+                    style={{ background: '#E85D04' }}>
+                    Fetch
+                  </button>
+                </div>
+                {fileStatus && <p className="text-xs text-gray-500 mt-2">{fileStatus}</p>}
+                {sourceLabel && <p className="text-xs text-green-600 mt-1 font-semibold">✓ {sourceLabel} — will be used as the source.</p>}
               </div>
             )}
 
             {activeTab === 'YouTube' && (
               <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">Add a YouTube video URL to align the passage with video content.</p>
-                <input
-                  type="url"
-                  value={youtubeUrl}
-                  onChange={e => {
-                    setYoutubeUrl(e.target.value)
-                    setAdditionalContext(e.target.value ? `YouTube reference: ${e.target.value}` : '')
-                  }}
-                  placeholder="https://youtube.com/watch?v=..."
-                  className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
-                  style={{ '--tw-ring-color': '#E85D04' }}
-                />
+                <p className="text-xs text-gray-500 mb-2">Add a YouTube video URL — we'll grab the transcript and use it as the source.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={youtubeUrl}
+                    onChange={e => {
+                      setYoutubeUrl(e.target.value)
+                      setAdditionalContext(e.target.value ? `YouTube reference: ${e.target.value}` : '')
+                    }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleFetchYoutube(youtubeUrl) } }}
+                    placeholder="https://youtube.com/watch?v=..."
+                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
+                    style={{ '--tw-ring-color': '#E85D04' }}
+                  />
+                  <button type="button" onClick={() => handleFetchYoutube(youtubeUrl)} disabled={!youtubeUrl}
+                    className="px-3 py-1.5 text-xs font-semibold text-white rounded disabled:opacity-50"
+                    style={{ background: '#E85D04' }}>
+                    Fetch
+                  </button>
+                </div>
+                {fileStatus && <p className="text-xs text-gray-500 mt-2">{fileStatus}</p>}
+                {sourceLabel && <p className="text-xs text-green-600 mt-1 font-semibold">✓ {sourceLabel} — will be used as the source.</p>}
               </div>
             )}
 
