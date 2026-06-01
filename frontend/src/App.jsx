@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import HomePage from './pages/HomePage'
 import FormPage from './pages/FormPage'
 import ResultPage from './pages/ResultPage'
@@ -43,17 +43,32 @@ export default function App() {
   const [error, setError] = useState(null)
   const [streamStatus, setStreamStatus] = useState('')
   const [tabs, setTabs] = useState([])
+  // A pending /api/sessions promise — guards against double-create when the
+  // user mashes the Generate button. Without this, two parallel handleGenerate
+  // calls each see sessionId === null (React state hasn't flushed between
+  // them), both POST /api/sessions, and only one session id survives in
+  // state — the other session's row is orphaned and any saved work under
+  // it never appears in the History panel.
+  const sessionPromiseRef = useRef(null)
 
   const ensureSession = async () => {
     if (sessionId) return sessionId
-    const res = await fetch(`${API}/api/sessions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    })
-    const data = await res.json()
-    setSessionId(data.session_id)
-    return data.session_id
+    if (sessionPromiseRef.current) return sessionPromiseRef.current
+    sessionPromiseRef.current = (async () => {
+      try {
+        const res = await fetch(`${API}/api/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        })
+        const data = await res.json()
+        setSessionId(data.session_id)
+        return data.session_id
+      } finally {
+        sessionPromiseRef.current = null
+      }
+    })()
+    return sessionPromiseRef.current
   }
 
   const handleGenerate = async (data) => {

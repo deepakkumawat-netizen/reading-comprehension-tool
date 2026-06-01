@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
@@ -21,6 +21,8 @@ from database import (init_db, create_session, save_comprehension,
 from rag import rag_retriever
 from nlp_adapter import get_grade_prompt_context, analyze_text_grade, GRADE_PROFILES, get_reading_counts
 from mcp_tools import MCP_TOOLS, execute_mcp_tool
+from security import (assert_public_url, read_upload_capped, client_ip,
+                      generate_limiter, extract_limiter, upload_limiter)
 
 load_dotenv()
 
@@ -61,11 +63,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Reading Comprehension Tool", version="1.0.0", lifespan=lifespan)
 
+# Same-origin SPA + localhost dev only — used to be `["*"]`, which let any
+# origin POST to the generate endpoint and drain the Groq quota. Override
+# via ALLOWED_ORIGINS env var if you need to embed elsewhere.
+_default_origins = "https://reading-comprehension-tool.onrender.com,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173"
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -160,8 +168,19 @@ Answer ({req.word_limit} words max):"""
                 temperature=0.3,
                 max_tokens=min(req.word_limit * 3, 300),
             )
-            answer = response.choices[0].message.content.strip()
+            # Groq can return content=None when the model produces only a
+            # refusal/tool message. Calling .strip() on None raises
+            # AttributeError, which was previously swallowed by the bare
+            # `except Exception` below, ate the fallback chain, and surfaced
+            # as a generic "Failed after N attempts" to the user. Coerce to
+            # empty string so we move to the next model cleanly.
+            raw_content = (response.choices[0].message.content if response.choices else None) or ""
+            answer = raw_content.strip()
             answer = re.sub(r'^(answer|model answer|response)\s*:\s*', '', answer, flags=re.IGNORECASE).strip()
+            if not answer:
+                # Skip empty/refusal completions and try the next model.
+                last_error = f"empty completion from {model}"
+                continue
 
             # Hard truncate to word limit as safety net
             words = answer.split()
@@ -223,7 +242,10 @@ def _validate_reading(data: dict, grade_level: int = 7) -> "str | None":
 
 
 @app.post("/api/reading/generate")
-async def generate_comprehension(req: ComprehensionRequest):
+async def generate_comprehension(req: ComprehensionRequest, request: Request):
+    # Per-IP rate limit on the most-expensive endpoint. Without this, anyone
+    # who finds the Render URL can drain the daily Groq quota in a loop.
+    await generate_limiter.check(client_ip(request))
     session_id = req.session_id or create_session()
 
     rag_retriever.build_index()
@@ -353,6 +375,13 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
                 )
 
                 for chunk in stream:
+                    # Groq sometimes emits a usage-only / keep-alive chunk
+                    # with empty choices — indexing [0] then raises
+                    # IndexError, which the outer except swallows and
+                    # triggers a spurious "Model error — switching to…"
+                    # mid-success. Skip those frames silently.
+                    if not chunk.choices:
+                        continue
                     delta = chunk.choices[0].delta.content or ""
                     if delta:
                         collected_chunks.append(delta)
@@ -404,6 +433,15 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
                         "Return ONLY a raw JSON object — no markdown fences, no prose. "
                         "Escape every double-quote inside string values as \\\".\n"
                     )
+                    # Rotate to the next model on JSON-parse failures too. The
+                    # old code only advanced model_idx on hard exceptions, so
+                    # if model 0 reliably emitted malformed JSON for a given
+                    # prompt, all 5 attempts hit model 0 with the same broken
+                    # pattern. Advancing here gives the fallback list a real
+                    # chance to recover.
+                    if model_idx < len(GROQ_FALLBACK_MODELS) - 1:
+                        model_idx += 1
+                        yield _sse({"type": "status", "message": f"Switching to {GROQ_FALLBACK_MODELS[model_idx]}…"})
                     continue
 
             yield _sse({"type": "status", "message": "Validating comprehension structure…"})
@@ -417,6 +455,13 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
                     f"passage is {GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])['passage_words']} words, "
                     "text_dependent_questions has >=6 questions, and vocabulary_in_context has >=5 items.\n"
                 )
+                # Same rotation as the JSON-parse failure path above. A model
+                # that overshoots passage length once with temperature 0.75
+                # tends to overshoot it again with the same prompt — try a
+                # different model on the next attempt instead of retrying.
+                if model_idx < len(GROQ_FALLBACK_MODELS) - 1:
+                    model_idx += 1
+                    yield _sse({"type": "status", "message": f"Switching to {GROQ_FALLBACK_MODELS[model_idx]}…"})
                 continue
 
             # Annotate passage with readability metrics
@@ -497,13 +542,20 @@ async def export_docx(payload: dict):
     doc.add_paragraph("Name: ____________________________   Date: _______________")
     doc.add_paragraph()
 
+    # All field accesses below use .get() with sensible fallbacks. The LLM
+    # validator only checks counts, not per-item keys, so any item with a
+    # missing field would otherwise raise KeyError → 500 → the frontend
+    # downloaded an "{detail: ...}" JSON blob saved as .docx (which Word
+    # then reports as a corrupt file).
+
     # Before You Read
     byr = comp.get("before_you_read", {})
     if byr:
         doc.add_heading(byr.get("title", "Before You Read"), 1)
         doc.add_paragraph(byr.get("instructions", ""))
-        for q in byr.get("questions", []):
-            doc.add_paragraph(f"{q['number']}. {q['question']}")
+        for i, q in enumerate(byr.get("questions", []), 1):
+            num = q.get("number", i)
+            doc.add_paragraph(f"{num}. {q.get('question', '')}")
             doc.add_paragraph("   Answer: ____________________________________________")
         doc.add_paragraph()
 
@@ -513,7 +565,7 @@ async def export_docx(payload: dict):
         doc.add_heading(ag.get("title", "Annotation Guide"), 1)
         doc.add_paragraph(ag.get("instructions", ""))
         for s in ag.get("symbols", []):
-            doc.add_paragraph(f"  {s['symbol']} = {s['meaning']}")
+            doc.add_paragraph(f"  {s.get('symbol', '')} = {s.get('meaning', '')}")
         doc.add_paragraph()
 
     # Passage
@@ -530,8 +582,9 @@ async def export_docx(payload: dict):
     if tdq:
         doc.add_heading(tdq.get("title", "Text-Dependent Questions"), 1)
         doc.add_paragraph(tdq.get("instructions", ""))
-        for q in tdq.get("questions", []):
-            doc.add_paragraph(f"{q['number']}. {q['question']}")
+        for i, q in enumerate(tdq.get("questions", []), 1):
+            num = q.get("number", i)
+            doc.add_paragraph(f"{num}. {q.get('question', '')}")
             doc.add_paragraph("   Answer: ____________________________________________")
             doc.add_paragraph("   ____________________________________________________")
         doc.add_paragraph()
@@ -542,9 +595,9 @@ async def export_docx(payload: dict):
         doc.add_heading(vic.get("title", "Vocabulary in Context"), 1)
         doc.add_paragraph(vic.get("instructions", ""))
         for i, item in enumerate(vic.get("items", []), 1):
-            doc.add_paragraph(f"{i}. Word: \"{item['word']}\"")
-            doc.add_paragraph(f"   From the text: \"{item['sentence_from_passage']}\"")
-            doc.add_paragraph(f"   {item['activity']}")
+            doc.add_paragraph(f"{i}. Word: \"{item.get('word', '')}\"")
+            doc.add_paragraph(f"   From the text: \"{item.get('sentence_from_passage', '')}\"")
+            doc.add_paragraph(f"   {item.get('activity', '')}")
             doc.add_paragraph("   My answer: _________________________________________")
             doc.add_paragraph()
 
@@ -569,8 +622,11 @@ async def add_rag_text(req: RAGDocRequest):
 
 
 @app.post("/api/rag/add-file")
-async def add_rag_file(file: UploadFile = File(...)):
-    raw = await file.read()
+async def add_rag_file(request: Request, file: UploadFile = File(...)):
+    await upload_limiter.check(client_ip(request))
+    # Stream-read with a 10MB cap. Previously `await file.read()` buffered
+    # the entire upload — a multi-GB POST would OOM the container.
+    raw = await read_upload_capped(file)
     content = ""
     if file.filename.endswith(".pdf"):
         import pypdf
@@ -598,19 +654,21 @@ async def add_rag_file(file: UploadFile = File(...)):
 
 
 @app.post("/api/extract-url")
-async def extract_url(req: dict):
+async def extract_url(req: dict, request: Request):
     """Fetch a webpage and return the cleaned article text as source_text."""
-    url = (req.get("url") or "").strip()
-    if not url:
-        raise HTTPException(status_code=400, detail="url is required")
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
+    await extract_limiter.check(client_ip(request))
+    # Block private / loopback / metadata IPs so this endpoint can't be used
+    # to read AWS/Render IMDS or pivot into the internal network.
+    url = assert_public_url((req.get("url") or "").strip())
     try:
         import httpx
         from bs4 import BeautifulSoup
         async with httpx.AsyncClient(follow_redirects=True, timeout=20.0,
             headers={"User-Agent": "Mozilla/5.0 (compatible; ReadingTool/1.0)"}) as cx:
             r = await cx.get(url)
+            # Re-validate the final URL after redirects so a public URL can't
+            # 302 us into a private host.
+            assert_public_url(str(r.url))
             r.raise_for_status()
             soup = BeautifulSoup(r.text, "html.parser")
             for bad in soup(["script", "style", "noscript", "iframe", "nav", "footer", "header", "form", "aside"]):
@@ -624,12 +682,20 @@ async def extract_url(req: dict):
         return {"success": True, "title": title, "url": url, "text": text[:8000], "chars": len(text)}
     except HTTPException:
         raise
+    except httpx.HTTPStatusError as e:
+        # Surface upstream 4xx as 4xx — previously a 404 page came back as
+        # "500 URL fetch failed: 404 Not Found".
+        raise HTTPException(status_code=e.response.status_code,
+                            detail=f"URL fetch failed: {e.response.status_code} {e.response.reason_phrase}")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach URL: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"URL fetch failed: {e}")
 
 
 @app.post("/api/auto-fields")
-async def auto_fields(req: dict):
+async def auto_fields(req: dict, request: Request):
+    await extract_limiter.check(client_ip(request))
     """Read uploaded text and propose a Topic + Learning Objective + grade.
 
     Saves the teacher from typing — they upload a PDF / URL / YouTube
@@ -766,7 +832,8 @@ async def _youtube_metadata_fallback(video_id: str, url: str) -> dict | None:
 
 
 @app.post("/api/extract-youtube")
-async def extract_youtube(req: dict):
+async def extract_youtube(req: dict, request: Request):
+    await extract_limiter.check(client_ip(request))
     """Fetch a YouTube transcript and return it as source_text. If YouTube
     blocks the transcript API (typical on cloud IPs), fall back to scraping
     the video's title + description so we still have usable source text."""

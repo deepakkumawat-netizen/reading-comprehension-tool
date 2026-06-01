@@ -23,24 +23,25 @@ class RAGRetriever:
         self._corpus = []
         self._metadata = []
         self._tfidf = []
+        self._idf = {}  # term -> idf weight, computed across the corpus
 
-    def _build_tfidf(self, docs: list) -> list:
-        tokenized = [_tokenize(d) for d in docs]
-        n = len(tokenized)
+    def _compute_idf(self, tokenized_docs: list) -> dict:
+        """Smoothed IDF (scikit-learn style): log((n+1)/(df+1)) + 1.
+
+        The +1 prevents the degenerate case where every corpus doc contains a
+        term (df=n → log(1)=0). Without smoothing, a small homogeneous corpus
+        collapses every term's IDF to 0.
+        """
+        n = len(tokenized_docs)
         df = Counter()
-        for tokens in tokenized:
+        for tokens in tokenized_docs:
             df.update(set(tokens))
+        return {term: math.log((n + 1) / (df[term] + 1)) + 1 for term in df}
 
-        result = []
-        for tokens in tokenized:
-            tf = Counter(tokens)
-            total = max(len(tokens), 1)
-            vec = {
-                term: (count / total) * math.log((n + 1) / (df[term] + 1))
-                for term, count in tf.items()
-            }
-            result.append(vec)
-        return result
+    def _vectorize(self, tokens: list, idf: dict) -> dict:
+        tf = Counter(tokens)
+        total = max(len(tokens), 1)
+        return {term: (count / total) * idf.get(term, 0.0) for term, count in tf.items()}
 
     def build_index(self):
         from database import get_all_comprehensions, get_all_rag_documents
@@ -63,13 +64,23 @@ class RAGRetriever:
             self._corpus.append(d["content"])
             self._metadata.append({"type": "rag_doc", "data": d})
 
-        self._tfidf = self._build_tfidf(self._corpus) if self._corpus else []
+        if self._corpus:
+            tokenized = [_tokenize(d) for d in self._corpus]
+            self._idf = self._compute_idf(tokenized)
+            self._tfidf = [self._vectorize(t, self._idf) for t in tokenized]
+        else:
+            self._idf = {}
+            self._tfidf = []
 
     def retrieve(self, query: str, top_k: int = 3, grade_filter: int = None) -> list:
         if not self._corpus:
             return []
 
-        query_vec = self._build_tfidf([query])[0]
+        # The old code re-ran _build_tfidf on the query alone, computing IDF
+        # over a single doc — log((1+1)/(df+1)) = 0 for every term, so the
+        # query vector was always all-zeros and retrieve() always returned
+        # nothing. Reuse the corpus IDF so the query gets real weights.
+        query_vec = self._vectorize(_tokenize(query), self._idf)
         scored = [
             (i, _cosine(query_vec, doc_vec))
             for i, doc_vec in enumerate(self._tfidf)

@@ -68,6 +68,12 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [listeningFor, setListeningFor] = useState(null)
   const dismissTimer = useRef(null)
   const recognitionRef = useRef(null)
+  // Track the latest in-flight URL / YouTube fetch so that if the user types
+  // a new URL while an older one is still resolving, we ignore the stale
+  // response. Without this, paste-A then paste-B can leave the UI showing
+  // B's label but A's content (older request happens to resolve last).
+  const fetchUrlRef = useRef({ controller: null, latest: null })
+  const fetchYtRef = useRef({ controller: null, latest: null })
 
   useEffect(() => {
     return () => {
@@ -127,15 +133,25 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
     r.lang = 'en-US'
     r.onstart = () => setListeningFor(field)
     r.onresult = (e) => {
-      const transcript = Array.from(e.results).map(x => x[0].transcript).join(' ')
-      const flagged = checkContent(transcript)
+      // With continuous=true, e.results is CUMULATIVE — every finalized
+      // result so far. The old code joined the full array and appended it
+      // to the field on each fire, so saying "a" "b" "c" produced
+      // "a" → "a a b" → "a a b a b c". Walk only the new segments from
+      // e.resultIndex onward.
+      let chunk = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) chunk += e.results[i][0].transcript + ' '
+      }
+      chunk = chunk.trim()
+      if (!chunk) return
+      const flagged = checkContent(chunk)
       if (flagged) {
         r.stop()
         showBlocked(flagged)
         return
       }
-      if (field === 'objective') setObjective(t => (t ? t + ' ' : '') + transcript)
-      else setTopic(t => (t ? t + ' ' : '') + transcript.slice(0, 2000))
+      if (field === 'objective') setObjective(t => (t ? t + ' ' : '') + chunk)
+      else setTopic(t => ((t ? t + ' ' : '') + chunk).slice(0, 2000))
     }
     r.onend = () => setListeningFor(null)
     r.onerror = () => setListeningFor(null)
@@ -201,12 +217,20 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
 
   const handleFetchUrl = async (url) => {
     if (!url) { setSourceText(''); setSourceLabel(''); return }
+    // Cancel any in-flight URL fetch and mark this URL as the latest one.
+    // Stale responses (older URLs whose fetch outraces a newer one) get
+    // dropped via the latest-URL guard below.
+    fetchUrlRef.current.controller?.abort()
+    const controller = new AbortController()
+    fetchUrlRef.current = { controller, latest: url }
     setFileStatus(`Fetching ${url}…`)
     try {
       const res = await fetch('/api/extract-url', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
+        signal: controller.signal,
       })
+      if (fetchUrlRef.current.latest !== url) return  // newer fetch superseded us
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.detail || 'fetch failed')
       const t = data.text || ''
@@ -215,18 +239,26 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       setFileStatus(`✓ Loaded ${data.chars} chars from ${data.title || url}`)
       autoFillFromSource(t)
     } catch (err) {
+      if (err.name === 'AbortError') return
+      if (fetchUrlRef.current.latest !== url) return
       setFileStatus(`Could not fetch URL: ${err.message}`)
     }
   }
 
   const handleFetchYoutube = async (url) => {
     if (!url) { setSourceText(''); setSourceLabel(''); return }
+    // Same race protection as handleFetchUrl above.
+    fetchYtRef.current.controller?.abort()
+    const controller = new AbortController()
+    fetchYtRef.current = { controller, latest: url }
     setFileStatus(`Fetching YouTube content…`)
     try {
       const res = await fetch('/api/extract-youtube', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
+        signal: controller.signal,
       })
+      if (fetchYtRef.current.latest !== url) return
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.detail || 'fetch failed')
       const t = data.text || ''
@@ -240,6 +272,8 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
         : `✓ Loaded YouTube transcript — ${data.chars} chars`)
       autoFillFromSource(t)
     } catch (err) {
+      if (err.name === 'AbortError') return
+      if (fetchYtRef.current.latest !== url) return
       setFileStatus(`Could not fetch YouTube: ${err.message}`)
     }
   }

@@ -1,10 +1,19 @@
 import { useRef, useState, useEffect } from 'react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import DOMPurify from 'dompurify'
 import Sidebar from '../components/Sidebar'
 import ExportDropdown from '../components/ExportDropdown'
 import EditorToolbar from '../components/EditorToolbar'
 import HistoryPopup from '../components/HistoryPopup'
+
+// Sanitize HTML before passing it to dangerouslySetInnerHTML. The HTML comes
+// from contentEditable serialization that includes LLM-generated text — a
+// poisoned source PDF/URL could prompt-inject the model into emitting an
+// <img onerror=...> inside a passage; once a teacher hits Save, that HTML
+// becomes savedHTML and is re-rendered on every subsequent view. DOMPurify
+// strips any active script vectors so the HTML can't execute.
+const sanitizeHTML = (html) => DOMPurify.sanitize(html || '', { USE_PROFILES: { html: true } })
 
 export default function ResultPage({ comprehension, formData, tabs, onNewTab, onCloseTab, onAdapt, onRemix, onLoadFromHistory, api }) {
   const [showAnswers, setShowAnswers] = useState(false)
@@ -141,10 +150,28 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const tdq = comp.text_dependent_questions || {}
   const vic = comp.vocabulary_in_context || {}
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     const text = contentRef.current?.innerText || ''
-    navigator.clipboard.writeText(text)
-    alert('Copied to clipboard!')
+    try {
+      // navigator.clipboard is undefined on non-HTTPS origins (e.g. http://
+      // LAN deploys). Fall back to a hidden textarea + execCommand so the
+      // button doesn't silently fail.
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        document.body.appendChild(ta)
+        ta.focus(); ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      alert('Copied to clipboard!')
+    } catch {
+      alert('Copy failed — please select and copy manually.')
+    }
   }
 
   const handlePdf = async () => {
@@ -166,17 +193,32 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   }
 
   const handleDocx = async () => {
-    const res = await fetch(`${api}/api/reading/export/docx`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comprehension: comp, ...formData })
-    })
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `reading_${formData.topic || 'comprehension'}.docx`
-    a.click()
+    try {
+      const res = await fetch(`${api}/api/reading/export/docx`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comprehension: comp, ...formData })
+      })
+      // Previously we always treated the response as a blob, so when the
+      // backend errored (e.g. KeyError on a missing field → 500 with JSON
+      // body), the user downloaded an .docx file containing the JSON error
+      // — Word reported it as corrupt. Bail out on !res.ok with the message.
+      if (!res.ok) {
+        let detail = `Export failed (HTTP ${res.status})`
+        try { const j = await res.json(); if (j?.detail) detail = j.detail } catch {}
+        alert(detail)
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reading_${formData.topic || 'comprehension'}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert(`Export failed: ${e.message || e}`)
+    }
   }
 
   const handleGoogleDrive = () => alert('Connect Google Drive coming soon!')
@@ -265,18 +307,17 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                 ref={editableRef}
                 contentEditable
                 suppressContentEditableWarning
-                dangerouslySetInnerHTML={{ __html: editableHTML || '' }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHTML(editableHTML) }}
                 className="bg-white rounded-xl shadow-sm border-2 border-dashed border-orange-400 p-10 min-h-[800px] focus:outline-none"
               />
             ) : savedHTML ? (
               <div
                 ref={contentRef}
-                dangerouslySetInnerHTML={{ __html: savedHTML }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHTML(savedHTML) }}
                 className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px]"
               />
             ) : (
             <div
-              key={showAnswers}
               ref={contentRef}
               className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 min-h-[800px]"
             >
