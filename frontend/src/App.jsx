@@ -6,27 +6,23 @@ import Landing from './Landing'
 
 const API = import.meta.env.DEV ? '' : ''
 
-// Block only graphically explicit / abusive vocabulary. Each entry is a regex
-// fragment that will be wrapped in word boundaries (\b...\b), so "ass" won't
-// match "class/assassinate/embassy" and "kill" won't match "skill/skilled".
-// Terms that have legit educational uses (violence in history, alcohol in
-// chemistry, weapons in history, breast in biology, drug in pharmacology)
-// are deliberately omitted — teachers should be able to build worksheets
-// around those topics. The model itself rejects truly graphic asks at
-// generation time as a second line of defence.
+// Filter only the most egregious intent-to-generate-porn / CSAM / slurs.
+// Earlier versions also blocked "sexual harassment", "child abuse", "rape",
+// "nude", "vagina", "penis" — all of which are legitimate academic topics
+// (law / women's safety education / anatomy / consent curriculum). The
+// model's own safety rails reject genuinely-bad asks at generation time;
+// this filter only catches obvious abuse so we don't burn Groq tokens
+// processing them.
 const BLOCKED_PATTERNS = [
-  // Sexually explicit
-  'porn(?:o|ography)?', 'pornographic', 'nude', 'nudity', 'naked',
+  // Obvious porn-generation intent
+  'porn(?:o|ography)?', 'pornographic',
   'masturbat\\w*', 'orgasm\\w*', 'erotic\\w*', 'fetish\\w*',
-  'genitals?', 'vagina', 'penis', 'anal\\s+sex', 'oral\\s+sex',
-  'sex\\s+(?:act|scene|tape|video|position)',
-  // Abuse / non-consent
-  'rape', 'raping', 'molest\\w*', 'pedophil\\w*', 'incest',
-  'child\\s+(?:porn|abuse|sex)',
-  'sexual\\s+(?:abuse|assault|harassment)',
-  // Slurs / explicit profanity
-  'fuck\\w*', 'shit\\w*', 'bitch\\w*', 'bastard\\w*',
-  'cunt\\w*', 'dick\\w*', 'cock\\w*', 'pussy', 'whore', 'slut',
+  'anal\\s+sex', 'oral\\s+sex',
+  'sex\\s+(?:act|scene|tape|video|position|story|stories|fantasy)',
+  // CSAM
+  'child\\s+porn', 'pedophil\\w*', 'incest',
+  // Explicit slurs and profanity in clear classroom-inappropriate form
+  'fuck\\w*', 'cunt\\w*', 'pussy', 'whore', 'slut',
 ]
 
 const BLOCKED_REGEX = new RegExp('\\b(?:' + BLOCKED_PATTERNS.join('|') + ')\\b', 'i')

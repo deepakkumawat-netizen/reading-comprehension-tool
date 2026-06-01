@@ -282,18 +282,31 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   // source material. ALWAYS overwrites — the teacher can edit afterwards.
   // This way switching source (URL → File → Standards → YouTube) always
   // refreshes the form to match the latest content.
+  //
+  // Surfaces status via setFileStatus so the teacher sees what's happening.
+  // Previously both error paths were silent, so a failed Groq call (quota /
+  // 429 / timeout) left the form empty with no explanation and looked
+  // identical to "auto-fill never ran".
   const autoFillFromSource = async (text) => {
     if (!text || text.trim().length < 30) return
+    setFileStatus(prev => (prev ? prev + ' · ' : '') + '✨ AI is suggesting Topic + Objective…')
     try {
       const res = await fetch('/api/auto-fields', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_text: text, grade_level: resolveGradeNum(grade) || undefined }),
       })
-      const data = await res.json()
-      if (!res.ok || !data.success) return
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        const why = (data && data.detail) ? data.detail : `HTTP ${res.status}`
+        setFileStatus(`✓ Source loaded · ⚠️ Couldn't auto-fill Topic/Objective (${why}). Please type them in.`)
+        return
+      }
       if (data.topic) setTopic(data.topic)
       if (data.learning_objective) setObjective(data.learning_objective)
-    } catch (_) { /* silent */ }
+      setFileStatus('✓ Source loaded · ✨ Topic + Objective auto-filled. Edit if needed.')
+    } catch (err) {
+      setFileStatus(`✓ Source loaded · ⚠️ Auto-fill failed (${err.message || 'network error'}). Please type Topic/Objective.`)
+    }
   }
 
   const handleGenerate = () => {
