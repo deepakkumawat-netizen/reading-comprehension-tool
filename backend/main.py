@@ -78,6 +78,30 @@ app.add_middleware(
 )
 
 
+# ── Cache-Control middleware ─────────────────────────────────────────────────
+# The SPA's index.html references hashed asset filenames (index-{hash}.js).
+# When we deploy a new build, the HTML changes to reference a NEW hash but
+# browsers with cached HTML keep loading the OLD JS bundle until their
+# cache expires — which is exactly the "user reports the same bug after we
+# fix it" loop. Serve HTML with no-cache, hashed assets with long-immutable.
+@app.middleware("http")
+async def cache_control_headers(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    is_html = path == "/" or path.endswith(".html")
+    is_hashed_asset = (
+        path.startswith("/assets/")
+        and any(path.endswith(ext) for ext in (".js", ".css", ".woff", ".woff2", ".ttf"))
+    )
+    if is_html:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    elif is_hashed_asset:
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
+
 class ComprehensionRequest(BaseModel):
     topic: str
     grade_level: int
