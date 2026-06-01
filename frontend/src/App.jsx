@@ -6,19 +6,32 @@ import Landing from './Landing'
 
 const API = import.meta.env.DEV ? '' : ''
 
-const BLOCKED_KEYWORDS = [
-  'sex','sexual','sexuality','porn','pornography','nude','nudity','naked',
-  'vagina','penis','genitals','breast','masturbat','orgasm','erotic',
-  'prostitut','rape','molest','abuse','explicit','adult content',
-  'drug','cocaine','heroin','meth','marijuana','weed','alcohol','beer','whiskey',
-  'kill','murder','suicide','violence','terrorist','bomb','weapon','gun',
-  'hate','racist','racism','sexist','slur','profanity','fuck','shit','ass','bitch','bastard',
+// Block only graphically explicit / abusive vocabulary. Each entry is a regex
+// fragment that will be wrapped in word boundaries (\b...\b), so "ass" won't
+// match "class/assassinate/embassy" and "kill" won't match "skill/skilled".
+// Terms that have legit educational uses (violence in history, alcohol in
+// chemistry, weapons in history, breast in biology, drug in pharmacology)
+// are deliberately omitted — teachers should be able to build worksheets
+// around those topics. The model itself rejects truly graphic asks at
+// generation time as a second line of defence.
+const BLOCKED_PATTERNS = [
+  // Sexually explicit
+  'porn(?:o|ography)?', 'pornographic', 'nude', 'nudity', 'naked',
+  'masturbat\\w*', 'orgasm\\w*', 'erotic\\w*', 'fetish\\w*',
+  'genitals?', 'vagina', 'penis', 'anal\\s+sex', 'oral\\s+sex',
+  'sex\\s+(?:act|scene|tape|video|position)',
+  // Abuse / non-consent
+  'rape', 'raping', 'molest\\w*', 'pedophil\\w*', 'incest',
+  'child\\s+(?:porn|abuse|sex)',
+  'sexual\\s+(?:abuse|assault|harassment)',
+  // Slurs / explicit profanity
+  'fuck\\w*', 'shit\\w*', 'bitch\\w*', 'bastard\\w*',
+  'cunt\\w*', 'dick\\w*', 'cock\\w*', 'pussy', 'whore', 'slut',
 ]
 
-const containsBlockedContent = (text = '') => {
-  const lower = text.toLowerCase()
-  return BLOCKED_KEYWORDS.some(word => lower.includes(word))
-}
+const BLOCKED_REGEX = new RegExp('\\b(?:' + BLOCKED_PATTERNS.join('|') + ')\\b', 'i')
+
+const containsBlockedContent = (text = '') => BLOCKED_REGEX.test(text)
 
 export default function App() {
   const [view, setView] = useState(() => localStorage.getItem('reading_seen_landing') ? 'home' : 'landing')
