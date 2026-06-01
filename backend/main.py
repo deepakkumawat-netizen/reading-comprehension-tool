@@ -203,6 +203,53 @@ Answer ({req.word_limit} words max):"""
 
 # ── Generate ──────────────────────────────────────────────────────────────────
 
+def _count_syllables(word: str) -> int:
+    """Rough syllable counter — vowel groups, minus silent terminal 'e'."""
+    word = (word or "").lower().strip(".,!?;:'\"")
+    if not word:
+        return 1
+    count = len(re.findall(r'[aeiouy]+', word))
+    if word.endswith('e') and count > 1:
+        count -= 1
+    return max(count, 1)
+
+
+# Per-grade complexity caps for the vocabulary_in_context items. The
+# GRADE_PROFILES are instructive in the prompt but the model doesn't
+# always follow them at Grade 1-3 — it will happily pull
+# "photosynthesis" from the source. Only applied to Grade 1-3.
+GRADE_VOCAB_CAPS = {
+    1: {"max_syllables": 2, "max_chars": 7},
+    2: {"max_syllables": 3, "max_chars": 8},
+    3: {"max_syllables": 3, "max_chars": 9},
+}
+
+
+def _check_grade_complexity(data: dict, grade_level: int) -> "str | None":
+    """For Grade 1-3, reject vocabulary_in_context items whose target word
+    exceeds the syllable/length cap for the grade. Returns the error string
+    so the retry prompt can call out which words to swap."""
+    caps = GRADE_VOCAB_CAPS.get(grade_level)
+    if not caps:
+        return None
+    vic = data.get("vocabulary_in_context", {})
+    too_complex = []
+    for item in vic.get("items", []) or []:
+        word = (item.get("word") or "").strip().lower()
+        if not word:
+            continue
+        if _count_syllables(word) > caps["max_syllables"] or len(word) > caps["max_chars"]:
+            too_complex.append(word)
+    if too_complex:
+        return (
+            f"Grade {grade_level} vocabulary must be at most {caps['max_syllables']} syllables and "
+            f"{caps['max_chars']} letters per word. These words are too complex: "
+            f"{', '.join(too_complex[:5])}. REPLACE each with a simpler Grade {grade_level} word "
+            f"on the same topic (1-2 syllable sight word, CVC pattern, decodable phonics)."
+        )
+    return None
+
+
 def _validate_reading(data: dict, grade_level: int = 7) -> "str | None":
     """Return an error description string if the comprehension JSON is invalid, else None.
     Validates structure AND that the passage length roughly matches the grade."""
@@ -462,6 +509,18 @@ Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
                 if model_idx < len(GROQ_FALLBACK_MODELS) - 1:
                     model_idx += 1
                     yield _sse({"type": "status", "message": f"Switching to {GROQ_FALLBACK_MODELS[model_idx]}…"})
+                continue
+
+            # For Grade 1-3, also enforce that vocabulary_in_context words
+            # actually match grade complexity. The model often pulls a complex
+            # source word like "photosynthesis" into a Grade 1 worksheet even
+            # with the NLP calibration in the prompt — this is the
+            # post-generation enforcement step.
+            complexity_error = _check_grade_complexity(data, req.grade_level)
+            if complexity_error:
+                last_reason = f"Grade-complexity failed: {complexity_error}"
+                yield _sse({"type": "status", "message": "Words too complex for the grade — regenerating with simpler vocabulary…"})
+                extra_instructions = complexity_error + "\n"
                 continue
 
             # Annotate passage with readability metrics
