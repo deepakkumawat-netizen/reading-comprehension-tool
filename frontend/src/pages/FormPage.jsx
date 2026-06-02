@@ -6,6 +6,27 @@ const GRADE_LEVELS = [
   '9th Grade Students', '10th Grade Students', '11th Grade Students', '12th Grade Students'
 ]
 
+// Curriculum boards the teacher can align this comprehension to. The value
+// is sent to the backend and woven into the LLM prompt so the passage,
+// vocabulary register, and question style match that board's syllabus.
+const CURRICULUM_BOARDS = [
+  'CBSE (India)',
+  'ICSE / ISC (India)',
+  'RBSE (Rajasthan)',
+  'Maharashtra State Board',
+  'Uttar Pradesh Board',
+  'Bihar Board',
+  'Tamil Nadu State Board',
+  'Karnataka State Board',
+  'West Bengal Board',
+  'IB (International Baccalaureate)',
+  'Cambridge IGCSE / A-Level',
+  'US Common Core',
+  'UK National Curriculum',
+  'Australian Curriculum',
+  'Other',
+]
+
 const GRADE_MAP = {
   '1st Grade Students': 1, '2nd Grade Students': 2,
   '3rd Grade Students': 3, '4th Grade Students': 4, '5th Grade Students': 5,
@@ -61,6 +82,8 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [standardsText, setStandardsText] = useState('')
+  const [board, setBoard] = useState('')           // Curriculum board (CBSE, ICSE, RBSE, ...)
+  const [customBoard, setCustomBoard] = useState('')  // Free-text when board === "Other"
   const [fileStatus, setFileStatus] = useState('')
   const [sourceText, setSourceText] = useState('')   // extracted from file / URL / YouTube
   const [sourceLabel, setSourceLabel] = useState('') // human-readable label of the source
@@ -291,9 +314,10 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
     if (!text || text.trim().length < 30) return
     setFileStatus(prev => (prev ? prev + ' · ' : '') + '✨ AI is suggesting Topic + Objective…')
     try {
+      const effectiveBoard = (board === 'Other' ? customBoard.trim() : board) || undefined
       const res = await fetch('/api/auto-fields', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_text: text, grade_level: resolveGradeNum(grade) || undefined }),
+        body: JSON.stringify({ source_text: text, grade_level: resolveGradeNum(grade) || undefined, board: effectiveBoard }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.success) {
@@ -324,12 +348,14 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
       showBlocked('Please select a Reading Level (grade) before generating.')
       return
     }
+    const effectiveBoard = (board === 'Other' ? customBoard.trim() : board) || undefined
     onGenerate({
       topic: topic.trim(),
       grade_level: gradeNum,
       learning_objective: objective.trim(),
       source_text: sourceText || undefined,
       additional_context: additionalContext || undefined,
+      board: effectiveBoard,
     })
   }
 
@@ -555,19 +581,45 @@ export default function FormPage({ onGenerate, onBack, loading, error, prefillDa
             )}
 
             {activeTab === 'Standards' && (
-              <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">Enter curriculum standards to align this activity (e.g., Common Core, NGSS).</p>
-                <textarea
-                  value={standardsText}
-                  onChange={e => {
-                    setStandardsText(e.target.value)
-                    setAdditionalContext(e.target.value ? `Curriculum standards: ${e.target.value}` : '')
-                  }}
-                  placeholder="e.g., CCSS.ELA-LITERACY.RI.7.1 — Cite several pieces of textual evidence to support analysis..."
-                  rows={3}
-                  className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none resize-none focus:ring-1"
-                  style={{ '--tw-ring-color': '#E85D04' }}
-                />
+              <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Curriculum Board</label>
+                  <p className="text-xs text-gray-500 mb-1.5">Pick your board — the comprehension passage, vocabulary, and questions will follow that board's standards for the selected grade.</p>
+                  <select
+                    value={board}
+                    onChange={e => { setBoard(e.target.value); if (e.target.value !== 'Other') setCustomBoard('') }}
+                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 bg-white focus:outline-none focus:ring-1"
+                    style={{ '--tw-ring-color': '#E85D04' }}
+                  >
+                    <option value="">— Select a board (optional) —</option>
+                    {CURRICULUM_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  {board === 'Other' && (
+                    <input
+                      type="text"
+                      value={customBoard}
+                      onChange={e => setCustomBoard(e.target.value)}
+                      placeholder="Type your board name (e.g. Punjab School Education Board)"
+                      className="mt-2 w-full border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-1"
+                      style={{ '--tw-ring-color': '#E85D04' }}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Specific standards (optional)</label>
+                  <p className="text-xs text-gray-500 mb-1.5">Paste specific learning standards or chapter references if you have them.</p>
+                  <textarea
+                    value={standardsText}
+                    onChange={e => {
+                      setStandardsText(e.target.value)
+                      setAdditionalContext(e.target.value ? `Curriculum standards: ${e.target.value}` : '')
+                    }}
+                    placeholder="e.g., CBSE Class 7 English — The Tiny Teacher (Honeycomb). Identify main idea and supporting details…"
+                    rows={3}
+                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs text-gray-700 focus:outline-none resize-none focus:ring-1"
+                    style={{ '--tw-ring-color': '#E85D04' }}
+                  />
+                </div>
               </div>
             )}
           </div>

@@ -106,6 +106,7 @@ class ComprehensionRequest(BaseModel):
     topic: str
     grade_level: int
     learning_objective: str
+    board: Optional[str] = None  # CBSE, ICSE, RBSE, etc. — woven into the prompt for curriculum alignment
     source_text: Optional[str] = None
     additional_context: Optional[str] = None
     session_id: Optional[str] = None
@@ -335,7 +336,17 @@ async def generate_comprehension(req: ComprehensionRequest, request: Request):
     ) if req.source_text else ""
     additional_block = f"Additional Context: {req.additional_context}" if req.additional_context else ""
     rag_block = f"\n{rag_context}" if rag_context else ""
-    ctx_block = f"{source_block}{additional_block}\n{rag_block}".strip()
+    # Curriculum board (CBSE / ICSE / RBSE / ...) becomes a hard constraint
+    # in the prompt — the passage, vocabulary register, and question style
+    # must match this board's published syllabus for the selected grade.
+    board_block = (
+        f"\nCURRICULUM BOARD: {req.board}\n"
+        f"The passage, vocabulary, and questions must align with the {req.board} syllabus and "
+        f"exam style for Grade {req.grade_level}. Use vocabulary, examples, and context that an "
+        f"actual {req.board} Grade {req.grade_level} student would encounter in their official "
+        f"textbooks and exams.\n"
+    ) if req.board else ""
+    ctx_block = f"{board_block}{source_block}{additional_block}\n{rag_block}".strip()
 
     def _build_prompt(extra_instructions: str = "") -> str:
         p = GRADE_PROFILES.get(req.grade_level, GRADE_PROFILES[7])
@@ -789,7 +800,9 @@ async def auto_fields(req: dict, request: Request):
     if not source_text:
         raise HTTPException(status_code=400, detail="source_text is required.")
     grade = req.get("grade_level")
+    board = (req.get("board") or "").strip()
     grade_hint = f"Calibrate the topic + objective for Grade {grade} students. " if grade else ""
+    board_hint = f"This is for the {board} curriculum — phrase the topic and objective to match {board} terminology and exam style. " if board else ""
 
     prompt = (
         "You are an expert reading-comprehension curriculum designer.\n"
@@ -797,7 +810,7 @@ async def auto_fields(req: dict, request: Request):
         "  • Topic (a short noun phrase, 4-10 words, naming the main idea)\n"
         "  • Learning Objective (one sentence starting with 'Students will…' "
         "describing what the student will be able to do after reading).\n"
-        f"{grade_hint}"
+        f"{grade_hint}{board_hint}"
         "Return ONLY a JSON object with keys 'topic' and 'learning_objective'. "
         "No markdown, no prose outside the JSON.\n\n"
         "SOURCE MATERIAL:\n---\n"
