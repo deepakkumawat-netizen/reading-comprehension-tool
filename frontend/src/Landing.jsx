@@ -93,17 +93,6 @@ function AuthModal({ mode, onClose, onSwitch, onEnter }) {
 export default function Landing({ onEnter }) {
   const [auth, setAuth] = useState(null)
 
-  // Hero image — fresh AI-generated Pixar-style cartoon on every visit.
-  // Flow: frontend → backend /api/hero-image (the Pollinations secret key
-  // lives in POLLINATIONS_API_KEY on the server, never reaches the browser).
-  // Backend proxies to Pollinations with a seed, returns the JPEG.
-  //
-  // Each page load picks a fresh random seed → fresh image. No rotation
-  // (controls cost — one Pollinations call per visit ~ $0.001, vs $0.06
-  // per session at 12-rotations/min).
-  const [heroSeed] = useState(() => Math.floor(Math.random() * 999999))
-  const heroUrl = `/api/hero-image?seed=${heroSeed}`
-
   return (
     <div className="min-h-screen bg-orange-50/50">
       <header className="flex items-center justify-between px-[6vw] py-4 border-b border-orange-100 bg-white">
@@ -117,35 +106,20 @@ export default function Landing({ onEnter }) {
         </div>
       </header>
 
-      <section className="px-[6vw] py-16 max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-10">
-        <div className="flex-1 min-w-0 text-center md:text-left">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-5" style={{ background: '#FDE3CC', color: '#E85D04' }}>
-            <span className="w-2 h-2 rounded-full" style={{ background: '#E85D04' }} /> Reading Activity Generator · K–12
-          </div>
-          <h1 className="text-4xl md:text-5xl font-extrabold leading-tight mb-4">
-            Build reading comprehension<br />
-            <span style={{ color: '#E85D04' }}>in seconds.</span>
-          </h1>
-          <p className="text-base md:text-lg text-gray-600 max-w-xl md:mx-0 mx-auto mb-7 leading-relaxed">
-            Generate complete reading activities — passages, before-you-read questions, text-dependent questions, vocabulary and annotation guides — perfectly calibrated to your students' grade level.
-          </p>
-          <div className="flex gap-3.5 justify-center md:justify-start flex-wrap">
-            <button onClick={() => setAuth('signup')} className="px-7 py-3.5 rounded-xl text-white font-bold text-base shadow-lg" style={{ background: '#E85D04' }}>Get Started Free →</button>
-            <button onClick={onEnter} className="px-7 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-700 font-bold text-base">Try it now</button>
-          </div>
+      <section className="text-center px-[6vw] py-20 max-w-3xl mx-auto">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-5" style={{ background: '#FDE3CC', color: '#E85D04' }}>
+          <span className="w-2 h-2 rounded-full" style={{ background: '#E85D04' }} /> Reading Activity Generator · K–12
         </div>
-        <div className="flex-1 flex justify-center min-w-0">
-          <div
-            className="w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
-            style={{ aspectRatio: '1 / 1', background: 'linear-gradient(135deg, #FDE3CC, #fff7ee)' }}
-          >
-            <img
-              src={heroUrl}
-              alt="Reading comprehension"
-              onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-              className="w-full h-full object-cover transition-opacity duration-300"
-            />
-          </div>
+        <h1 className="text-4xl md:text-5xl font-extrabold leading-tight mb-4">
+          Build reading comprehension<br />
+          <span style={{ color: '#E85D04' }}>in seconds.</span>
+        </h1>
+        <p className="text-base md:text-lg text-gray-600 max-w-xl mx-auto mb-7 leading-relaxed">
+          Generate complete reading activities — passages, before-you-read questions, text-dependent questions, vocabulary and annotation guides — perfectly calibrated to your students' grade level.
+        </p>
+        <div className="flex gap-3.5 justify-center flex-wrap">
+          <button onClick={() => setAuth('signup')} className="px-7 py-3.5 rounded-xl text-white font-bold text-base shadow-lg" style={{ background: '#E85D04' }}>Get Started Free →</button>
+          <button onClick={onEnter} className="px-7 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-700 font-bold text-base">Try it now</button>
         </div>
       </section>
 
