@@ -29,11 +29,12 @@ const BLOCKED_REGEX = new RegExp('\\b(?:' + BLOCKED_PATTERNS.join('|') + ')\\b',
 const containsBlockedContent = (text = '') => BLOCKED_REGEX.test(text)
 
 export default function App() {
-  // Two-screen flow: Landing (with Sign Up / Log In / Try it now) → Form.
-  // Skip Landing on subsequent visits if the user has signed up/logged in
-  // (AuthModal sets `reading_user` in localStorage). "Try it now" doesn't
-  // set that, so guests see the Landing again next visit, which is fine.
-  const [view, setView] = useState(() => localStorage.getItem('reading_user') ? 'form' : 'landing')
+  // Every visit starts on the Landing page. The user can then Sign Up,
+  // Log In, or click "Try it now" to enter the Form. Even returning
+  // logged-in users see the Landing first — they pass straight through
+  // by clicking any of the three buttons, but the marketing/branding
+  // page is always the entry point.
+  const [view, setView] = useState('landing')
   const [sessionId, setSessionId] = useState(null)
   const [comprehension, setComprehension] = useState(null)
   const [formData, setFormData] = useState({})
