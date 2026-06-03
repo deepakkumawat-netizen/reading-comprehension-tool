@@ -93,16 +93,24 @@ function AuthModal({ mode, onClose, onSwitch, onEnter }) {
 export default function Landing({ onEnter }) {
   const [auth, setAuth] = useState(null)
 
-  // Hero image rotation — preload the next Pollinations seed and only swap
-  // the visible src once it's fully loaded, so the rectangle never blanks
-  // between rotations. Same pattern as the other tools.
-  const buildHeroUrl = (s) => `https://image.pollinations.ai/prompt/3D%20Pixar%20cartoon%20illustration%20of%20a%20cheerful%20student%20reading%20an%20open%20storybook%20with%20glowing%20words%20and%20question%20marks%20floating%20out%20of%20the%20pages%2C%20colorful%20books%20bookmark%20and%20pencils%2C%20bright%20vibrant%20colors%2C%20clean%20white%20background%2C%20educational%20learning?width=768&height=768&seed=${s}&nologo=true`
-  const [heroUrl, setHeroUrl] = useState(buildHeroUrl(47))
+  // Hero image rotation — themed photos from LoremFlickr (free, no key).
+  // Pollinations.ai used to power this but switched to a paid model and
+  // now returns 402 "Queue full for IP" on every Render request.
+  const HERO_KEYWORDS = [
+    'reading,book',
+    'student,studying',
+    'library,books',
+    'storybook,child',
+    'classroom,learning',
+    'pages,literature',
+  ]
+  const buildHeroUrl = (i) => `https://loremflickr.com/800/800/${HERO_KEYWORDS[i % HERO_KEYWORDS.length]}?lock=${i}`
+  const [heroUrl, setHeroUrl] = useState(buildHeroUrl(0))
   useEffect(() => {
-    let seed = 47
+    let i = 0
     const t = setInterval(() => {
-      seed += 1
-      const nextUrl = buildHeroUrl(seed)
+      i += 1
+      const nextUrl = buildHeroUrl(i)
       const img = new Image()
       img.onload = () => setHeroUrl(nextUrl)
       img.src = nextUrl
@@ -141,13 +149,17 @@ export default function Landing({ onEnter }) {
           </div>
         </div>
         <div className="flex-1 flex justify-center min-w-0">
-          <img
-            src={heroUrl}
-            alt="Student reading a book with questions and words"
-            onError={(e) => { e.currentTarget.style.display = 'none' }}
-            className="w-full max-w-md rounded-2xl shadow-xl transition-opacity duration-300"
+          <div
+            className="w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
             style={{ aspectRatio: '1 / 1', background: 'linear-gradient(135deg, #FDE3CC, #fff7ee)' }}
-          />
+          >
+            <img
+              src={heroUrl}
+              alt="Reading comprehension"
+              onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
+              className="w-full h-full object-cover transition-opacity duration-300"
+            />
+          </div>
         </div>
       </section>
 
