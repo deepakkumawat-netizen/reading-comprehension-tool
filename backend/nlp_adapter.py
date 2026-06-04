@@ -206,8 +206,29 @@ def get_reading_counts(grade_level: int) -> dict:
     return {"total_q": 7, "literal": 3, "inferential": 2, "higher": 2, "vocab": 5, "before": 3}
 
 
-def get_grade_prompt_context(grade_level: int) -> str:
+def get_grade_prompt_context(grade_level: int, has_source: bool = False) -> str:
+    """Build the grade-level calibration block.
+
+    When `has_source=True` (the teacher uploaded a file / URL / YouTube
+    transcript), the 'TOPIC APPROACH' line is suppressed because that line
+    used to override the source. Example failure: teacher uploaded a file
+    about Conversational AI Tutoring for Grade 1 → the prompt told the
+    model 'Themes appropriate for Grade 1: home, family, pets, colors…',
+    so the model wrote a passage called "My Pet" instead of teaching the
+    AI material in Grade 1 language. With source present, the source
+    decides the topic; only vocabulary/syntax stay grade-calibrated."""
     p = GRADE_PROFILES.get(grade_level, GRADE_PROFILES[7])
+    if has_source:
+        topic_block = (
+            "TOPIC APPROACH:\n"
+            "  The SOURCE MATERIAL provided by the teacher decides the topic — do NOT swap it for a Grade-themed fallback. "
+            f"Stay strictly on the source's subject and adapt only the language to Grade {grade_level}.\n"
+        )
+    else:
+        topic_block = (
+            "TOPIC APPROACH:\n"
+            f"  Themes appropriate for Grade {grade_level}: {p['theme']}\n"
+        )
     return f"""=== GRADE {grade_level} NLP CALIBRATION REQUIREMENTS ===
 You MUST follow every rule below. Content that violates any rule is unacceptable.
 
@@ -233,9 +254,7 @@ DEFINITION STYLE:
 EXAMPLE / CONTEXT STYLE:
   {p['example_style']}
 
-TOPIC APPROACH:
-  Themes appropriate for Grade {grade_level}: {p['theme']}
-
+{topic_block}
 TEXT STRUCTURE:
   {p['text_structure']}
 

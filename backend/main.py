@@ -326,14 +326,16 @@ async def generate_comprehension(req: ComprehensionRequest, request: Request):
         grade_level=req.grade_level
     )
 
-    grade_ctx = get_grade_prompt_context(req.grade_level)
+    has_source = bool(req.source_text and req.source_text.strip())
+    grade_ctx = get_grade_prompt_context(req.grade_level, has_source=has_source)
 
     # Pre-compute optional blocks to avoid backslashes inside f-string expressions
     source_block = (
-        "\nSOURCE MATERIAL (MANDATORY — base the passage's facts, names, examples and "
-        "vocabulary on THIS content only; do not invent facts that contradict it):\n"
+        "\nSOURCE MATERIAL (AUTHORITATIVE — the passage's topic, facts, names, examples and "
+        "vocabulary MUST come from THIS content. Do not switch to a Grade-themed fallback "
+        "topic; rewrite the source material in grade-appropriate language instead):\n"
         f"---\n{req.source_text[:6000]}\n---\n"
-    ) if req.source_text else ""
+    ) if has_source else ""
     additional_block = f"Additional Context: {req.additional_context}" if req.additional_context else ""
     rag_block = f"\n{rag_context}" if rag_context else ""
     # Curriculum board (CBSE / ICSE / RBSE / ...) becomes a hard constraint
@@ -371,7 +373,7 @@ CRITICAL RULES:
 3. Generate EXACTLY {c['total_q']} text-dependent questions (calibrated for Grade {req.grade_level} attention) and EXACTLY {c['vocab']} vocabulary items. Do NOT write all literal questions.
 4. Vocabulary in Context words must come directly from the passage.
 5. Before You Read questions must activate prior knowledge at a Grade {req.grade_level} cognitive level.
-{"6. SOURCE MATERIAL is provided above and is the AUTHORITATIVE basis for this passage. The passage MUST be a grade-level rewrite/summary of the SOURCE MATERIAL — every fact, name, number, date, event, term and example must come directly from it. Do NOT invent content from your own knowledge if it contradicts or is absent from the source. Text-dependent questions must reference the rewritten passage (which reflects the source); Vocabulary in Context words must be picked from words actually present in the source." if req.source_text else ""}
+{"6. SOURCE MATERIAL is provided above and is the AUTHORITATIVE topic and basis. The passage MUST be a grade-level rewrite/summary of the SOURCE MATERIAL — every fact, name, number, date, event, term and example must come directly from it. Do NOT switch to a different topic just because the grade is young — if the source is about Conversational AI Tutoring and grade is 1, you must STILL write about that AI topic, but using Grade 1 vocabulary (e.g. 'A robot can talk to you. It can help you learn.'). Do NOT invent a 'My Pet' / 'My Family' / generic-Grade-1 passage when source is provided. Text-dependent questions must reference the rewritten passage; Vocabulary in Context words must be picked from words actually present in the source (simplified to grade level)." if req.source_text else ""}
 {extra_instructions}
 
 Return ONLY valid JSON. No markdown fences. No prose outside the JSON.
