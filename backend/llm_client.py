@@ -155,7 +155,16 @@ def _call_gemini(messages, **kwargs):
     if not contents:
         contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
 
-    cfg_args = {}
+    cfg_args = {
+        # Disable internal "thinking" tokens. gemini-flash-latest is a
+        # reasoning model that, by default, uses a hidden chain-of-thought
+        # which counts against max_output_tokens. With max_tokens=600 set
+        # by callers, thinking ate 572 tokens (95% of the budget) and the
+        # student-facing answer got 24 tokens — truncated mid-sentence
+        # after the DEFINITION header. We don't need CoT for grade-school
+        # lessons; the answer should be direct.
+        "thinking_config": _gtypes.ThinkingConfig(thinking_budget=0),
+    }
     if system_parts:
         cfg_args["system_instruction"] = "\n\n".join(system_parts)
     if "temperature" in kwargs:
@@ -163,7 +172,7 @@ def _call_gemini(messages, **kwargs):
     if "max_tokens" in kwargs or "max_completion_tokens" in kwargs:
         cfg_args["max_output_tokens"] = kwargs.get("max_tokens") or kwargs.get("max_completion_tokens") or 2048
 
-    config = _gtypes.GenerateContentConfig(**cfg_args) if cfg_args else None
+    config = _gtypes.GenerateContentConfig(**cfg_args)
 
     resp = _gemini.models.generate_content(
         model=GEMINI_MODEL,
