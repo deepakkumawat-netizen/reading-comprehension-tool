@@ -138,7 +138,7 @@ export default function Landing({ onEnter }) {
 
       <footer className="border-t border-gray-100 py-6 px-[6vw] text-center text-xs text-gray-500">
         <div className="inline-flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Powered by Codevidhya</div>
-        <div className="mt-1.5">© 2025 Reading Comprehension</div>
+        <div className="mt-1.5">© 2026 Reading Comprehension</div>
       </footer>
 
       {auth && <AuthModal mode={auth} onClose={() => setAuth(null)} onSwitch={() => setAuth((m) => (m === 'signup' ? 'login' : 'signup'))} onEnter={onEnter} />}
