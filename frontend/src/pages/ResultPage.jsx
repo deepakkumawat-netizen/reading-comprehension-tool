@@ -313,12 +313,13 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                 dangerouslySetInnerHTML={{ __html: sanitizeHTML(editableHTML) }}
                 className="bg-white rounded-xl shadow-sm border-2 border-dashed border-orange-400 p-10 min-h-[800px] focus:outline-none"
               />
-            ) : (savedHTML && !showAnswers) ? (
-              // Saved (edited) student view — only when answer key is OFF.
-              // When showAnswers=true the dynamic JSX render below kicks
-              // in so the answer key actually shows answers, but savedHTML
-              // is preserved so flipping back to student view restores
-              // the teacher's edits.
+            ) : savedHTML ? (
+              // Saved (edited) view — rendered in BOTH student AND answer
+              // views once the teacher has saved an edit. This is what
+              // teachers actually want: their edits persist everywhere.
+              // Trade-off: the Answer Key toggle is a visual no-op once
+              // edits are saved (teacher should include answer text in
+              // their edits if they want answers shown).
               <div
                 ref={contentRef}
                 dangerouslySetInnerHTML={{ __html: sanitizeHTML(savedHTML) }}
