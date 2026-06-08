@@ -194,19 +194,37 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
   const handlePdf = async () => {
     const element = contentRef.current
     if (!element) return
-    const canvas = await html2canvas(element, { scale: 2, useCORS: true })
-    const imgData = canvas.toDataURL('image/png')
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const pageWidth = pdf.internal.pageSize.getWidth()
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    const imgHeight = (canvas.height * pageWidth) / canvas.width
-    let y = 0
-    while (y < imgHeight) {
-      pdf.addImage(imgData, 'PNG', 0, -y, pageWidth, imgHeight)
-      if (y + pageHeight < imgHeight) pdf.addPage()
-      y += pageHeight
+
+    // Print-mode hides screen-only decorative badges (orange hint pills,
+    // colored answer chips, contentEditable dashed underlines) so the PDF
+    // looks like a traditional printable worksheet.
+    element.classList.add('pdf-export-mode')
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      })
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 10
+      const usableWidth = pageWidth - margin * 2
+      const imgHeight = (canvas.height * usableWidth) / canvas.width
+      let y = 0
+      while (y < imgHeight) {
+        pdf.addImage(imgData, 'PNG', margin, margin - y, usableWidth, imgHeight)
+        if (y + (pageHeight - margin * 2) < imgHeight) pdf.addPage()
+        y += pageHeight - margin * 2
+      }
+      const suffix = showAnswers ? '_answer-key' : '_student'
+      pdf.save(`reading_${formData.topic || 'comprehension'}${suffix}.pdf`)
+    } finally {
+      element.classList.remove('pdf-export-mode')
     }
-    pdf.save(`reading_${formData.topic || 'comprehension'}.pdf`)
   }
 
   const handleDocx = async () => {
@@ -242,6 +260,34 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
 
   return (
     <div className="flex flex-col h-screen" style={{ background: '#FAF9F7' }}>
+
+      {/* PDF print-mode styles — applied only when contentRef has the
+          .pdf-export-mode class (added by handlePdf during capture).
+          Strips screen-only decorations so the PDF looks like a clean
+          printed worksheet. */}
+      <style>{`
+        .pdf-export-mode [contenteditable="true"] {
+          border: none !important;
+          background: transparent !important;
+          min-height: 16px;
+        }
+        .pdf-export-mode .pdf-hide,
+        .pdf-export-mode [data-pdf-hide="true"] {
+          display: none !important;
+        }
+        .pdf-export-mode .bg-orange-50,
+        .pdf-export-mode .bg-amber-50 {
+          background: transparent !important;
+        }
+        .pdf-export-mode .border-orange-200,
+        .pdf-export-mode .border-amber-200 {
+          border-color: #999 !important;
+        }
+        .pdf-export-mode .rounded-full,
+        .pdf-export-mode .rounded-md {
+          border-radius: 3px !important;
+        }
+      `}</style>
 
       {/* Tab bar + Export — matches Screenshot 4 */}
       <div className="bg-white border-b border-gray-200 flex items-center px-4 gap-2" style={{ minHeight: 44 }}>
@@ -360,7 +406,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                     <div key={i} className="mb-3">
                       <p className="text-sm text-gray-700">{q.question}</p>
                       <div className="mt-2">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
+                        <span data-pdf-hide="true" className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
                           Word limit: up to {wordLimit} words
                         </span>
                         <div
@@ -475,7 +521,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                             {/* Student view: only word limit + answer blank */}
                             {!showAnswers && (
                               <div className="mt-2">
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
+                                <span data-pdf-hide="true" className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
                                   Word limit: up to {wordLimit} words
                                 </span>
                                 <div
@@ -520,7 +566,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                         )}
                         {!showAnswers && (
                           <div className="mt-2">
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
+                            <span data-pdf-hide="true" className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200" style={{ color: '#E85D04' }}>
                               Word limit: up to {wordLimit} words
                             </span>
                             <div
