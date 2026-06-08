@@ -118,7 +118,10 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       return
     }
     if (label === 'Evaluate') {
-      setSavedHTML(null)  // clear frozen edits so the dynamic answer view renders
+      // Toggle answer-key view WITHOUT destroying savedHTML. The render
+      // below now prefers the dynamic JSX when showAnswers=true, and the
+      // saved (edited) HTML when showAnswers=false — so the teacher's
+      // edits survive a flip to the answer key and back.
       setShowAnswers(a => !a)
       setActiveSidebar(prev => prev === 'Evaluate' ? null : 'Evaluate')
       setShowHistory(false)
@@ -261,7 +264,7 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
       {/* Toolbar */}
       <div className="bg-white border-b border-gray-100 flex items-center gap-3 px-4 py-1 text-gray-500 text-xs">
         <button
-          onClick={() => { setIsEditMode(false); setSavedHTML(null); setShowAnswers(a => !a) }}
+          onClick={() => { setIsEditMode(false); setShowAnswers(a => !a) }}
           className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
             showAnswers
               ? 'border-orange-300 text-orange-600 bg-orange-50'
@@ -310,7 +313,12 @@ export default function ResultPage({ comprehension, formData, tabs, onNewTab, on
                 dangerouslySetInnerHTML={{ __html: sanitizeHTML(editableHTML) }}
                 className="bg-white rounded-xl shadow-sm border-2 border-dashed border-orange-400 p-10 min-h-[800px] focus:outline-none"
               />
-            ) : savedHTML ? (
+            ) : (savedHTML && !showAnswers) ? (
+              // Saved (edited) student view — only when answer key is OFF.
+              // When showAnswers=true the dynamic JSX render below kicks
+              // in so the answer key actually shows answers, but savedHTML
+              // is preserved so flipping back to student view restores
+              // the teacher's edits.
               <div
                 ref={contentRef}
                 dangerouslySetInnerHTML={{ __html: sanitizeHTML(savedHTML) }}
