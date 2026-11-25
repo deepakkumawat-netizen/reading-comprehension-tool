@@ -26,13 +26,21 @@ from security import (assert_public_url, read_upload_capped, client_ip,
 
 load_dotenv()
 
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-GROQ_FALLBACK_MODELS = [
+# Groq retired the Llama 3.x / Llama 4 Scout / DeepSeek-distill models for
+# free/dev-tier keys (Aug 2026), so every one of the old fallbacks returned
+# model_not_found. An old GROQ_MODEL left in the environment is ignored.
+_RETIRED_MODELS = {
+    "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it",
+    "deepseek-r1-distill-llama-70b", "meta-llama/llama-4-scout-17b-16e-instruct",
+    "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768",
+}
+_env_model = os.getenv("GROQ_MODEL", "").strip()
+GROQ_MODEL = _env_model if _env_model and _env_model not in _RETIRED_MODELS else "openai/gpt-oss-120b"
+GROQ_FALLBACK_MODELS = list(dict.fromkeys([
     GROQ_MODEL,
-    "llama-3.1-8b-instant",
-    "deepseek-r1-distill-llama-70b",
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-]
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+]))
 _groq_client = None
 
 
@@ -40,6 +48,16 @@ def get_groq_client() -> Groq:
     global _groq_client
     if _groq_client is None:
         _groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        # gpt-oss reasons before answering; keep that short so small
+        # max_tokens budgets (e.g. the 400-token JSON calls) still get an answer.
+        _create = _groq_client.chat.completions.create
+
+        def _create_with_defaults(*args, **kwargs):
+            if str(kwargs.get("model", "")).startswith("openai/gpt-oss"):
+                kwargs.setdefault("reasoning_effort", "low")
+            return _create(*args, **kwargs)
+
+        _groq_client.chat.completions.create = _create_with_defaults
     return _groq_client
 
 
